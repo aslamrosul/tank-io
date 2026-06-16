@@ -289,7 +289,7 @@ function spawnPlayer(socket, name) {
     killStreak: 0,
     level: 1,
     xp: 0,
-    upgradePoints: 0,
+    upgradePoints: 3,
     weapon: 'basic',
     weaponPath: ['basic'],
     stats: { damage: 0, reload: 0, speed: 0, maxHp: 0, bulletSpeed: 0, regen: 0 },

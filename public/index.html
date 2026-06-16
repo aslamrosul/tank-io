@@ -95,6 +95,8 @@
       letter-spacing: 0; text-transform: none;
     }
     .upgradeCard:hover { border-color: rgba(0, 209, 255, .55); background: linear-gradient(135deg, rgba(0, 209, 255, .18), rgba(124, 58, 237, .13)); }
+    .upgradeCard.locked { opacity: .58; cursor: not-allowed; filter: saturate(.55); }
+    .upgradeCard.locked:hover { border-color: rgba(255,255,255,.11); background: linear-gradient(135deg, rgba(255,255,255,.08), rgba(255,255,255,.035)); }
     .upgradeCard strong { display: block; font-size: 14px; margin-bottom: 4px; }
     .upgradeCard small { display: block; color: rgba(255,255,255,.64); line-height: 1.4; font-weight: 500; }
     .upgradeMeta { margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; }
@@ -103,6 +105,14 @@
     .statDots { display: flex; gap: 4px; margin-top: 8px; }
     .statDots i { width: 16px; height: 5px; border-radius: 999px; background: rgba(255,255,255,.16); }
     .statDots i.active { background: #00d1ff; }
+    .toast {
+      position: fixed; left: 50%; top: 22px; transform: translate(-50%, -18px); z-index: 40; opacity: 0; pointer-events: none;
+      max-width: min(92vw, 520px); padding: 12px 15px; border-radius: 15px; border: 1px solid rgba(0,209,255,.3);
+      background: linear-gradient(135deg, rgba(15,23,42,.94), rgba(2,6,23,.9)); box-shadow: 0 18px 60px rgba(0,0,0,.45);
+      color: #d8f7ff; font-size: 13px; font-weight: 800; text-align: center; backdrop-filter: blur(14px);
+      transition: opacity .18s ease, transform .18s ease;
+    }
+    .toast.show { opacity: 1; transform: translate(-50%, 0); }
 
     .touchControls {
       position: fixed; inset: 0; z-index: 11; pointer-events: none; display: none;
@@ -213,6 +223,7 @@
     <button id="mobileUpgradeBtn" class="mobileUpgradeBtn">Upgrade</button>
   </div>
 
+  <div id="toast" class="toast"></div>
   <div class="controls">WASD / Arrow = gerak • Mouse = aim • Klik/Space = tembak • U = upgrade • Ricochet/Burst/Explosive tersedia</div>
 
   <script src="/socket.io/socket.io.js"></script>
@@ -242,6 +253,7 @@
     const aimPad = document.getElementById('aimPad');
     const aimKnob = document.getElementById('aimKnob');
     const mobileUpgradeBtn = document.getElementById('mobileUpgradeBtn');
+    const toastEl = document.getElementById('toast');
 
     let dpr = 1;
     let world = { width: 2400, height: 1550 };
@@ -435,7 +447,28 @@
     upgradePanel.addEventListener('click', (e) => {
       const button = e.target.closest('[data-upgrade-type]');
       if (!button) return;
+      e.preventDefault();
+      e.stopPropagation();
+
+      const me = players[myId];
+      if (!me || !joined) {
+        showToast('Masuk arena dulu sebelum upgrade.');
+        return;
+      }
+      if (me.upgradePoints <= 0 || button.dataset.locked === 'true') {
+        showToast('Upgrade point habis. Dapatkan XP/kill dulu untuk point baru.');
+        return;
+      }
+
       socket.emit('chooseUpgrade', { type: button.dataset.upgradeType, id: button.dataset.upgradeId });
+    });
+
+    socket.on('upgradeResult', ({ ok, type, id, upgradePoints } = {}) => {
+      if (ok) {
+        showToast(`Upgrade berhasil: ${titleCase(id || type)} • Sisa point ${upgradePoints}`);
+        return;
+      }
+      showToast('Upgrade gagal. Syarat belum cukup atau point sudah habis.');
     });
 
     function joinGame() {
@@ -540,7 +573,7 @@
       const canBuy = me.upgradePoints > 0;
       weaponOptionsEl.innerHTML = me.weaponOptions && me.weaponOptions.length
         ? me.weaponOptions.map((item) => `
-          <button class="upgradeCard" data-upgrade-type="weapon" data-upgrade-id="${escapeHtml(item.id)}" ${canBuy ? '' : 'disabled'}>
+          <button class="upgradeCard ${canBuy ? '' : 'locked'}" data-upgrade-type="weapon" data-upgrade-id="${escapeHtml(item.id)}" data-locked="${canBuy ? 'false' : 'true'}">
             <strong>${escapeHtml(item.name)}</strong>
             <small>${escapeHtml(item.desc)}</small>
             <div class="upgradeMeta"><em>Tier ${item.tier}</em><em>Min Lv ${item.minLevel}</em><em>Cost 1</em></div>
@@ -549,7 +582,7 @@
 
       tacticalOptionsEl.innerHTML = me.tacticalOptions && me.tacticalOptions.length
         ? me.tacticalOptions.map((item) => `
-          <button class="upgradeCard" data-upgrade-type="tactical" data-upgrade-id="${escapeHtml(item.id)}" ${canBuy ? '' : 'disabled'}>
+          <button class="upgradeCard ${canBuy ? '' : 'locked'}" data-upgrade-type="tactical" data-upgrade-id="${escapeHtml(item.id)}" data-locked="${canBuy ? 'false' : 'true'}">
             <strong>${escapeHtml(item.name)} Lv ${item.level}/${item.max}</strong>
             <small>${escapeHtml(item.desc)}</small>
             <div class="upgradeMeta"><em>Tactical</em><em>Cost 1</em><em>${item.id === 'ricochet' ? 'Mantul' : item.id === 'burst' ? 'Extra Shot' : item.id === 'explosive' ? 'Splash' : item.id === 'killHeal' ? 'Heal Kill' : 'Defense'}</em></div>
@@ -559,7 +592,7 @@
 
       statOptionsEl.innerHTML = me.statOptions && me.statOptions.length
         ? me.statOptions.map((item) => `
-          <button class="upgradeCard" data-upgrade-type="stat" data-upgrade-id="${escapeHtml(item.id)}" ${canBuy ? '' : 'disabled'}>
+          <button class="upgradeCard ${canBuy ? '' : 'locked'}" data-upgrade-type="stat" data-upgrade-id="${escapeHtml(item.id)}" data-locked="${canBuy ? 'false' : 'true'}">
             <strong>${escapeHtml(item.name)} Lv ${item.level}/${item.max}</strong>
             <small>${escapeHtml(item.desc)}</small>
             <div class="statDots">${Array.from({ length: item.max }, (_, i) => `<i class="${i < item.level ? 'active' : ''}"></i>`).join('')}</div>
@@ -573,6 +606,15 @@
 
     function titleCase(value) {
       return String(value).replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+    }
+
+    let toastTimer = null;
+    function showToast(message) {
+      if (!toastEl) return;
+      toastEl.textContent = message;
+      toastEl.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toastEl.classList.remove('show'), 1800);
     }
 
     function updateCamera() {
