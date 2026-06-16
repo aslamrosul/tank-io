@@ -1,13 +1,21 @@
 {
-  "name": "hd-multiplayer-tank",
-  "version": "1.0.0",
-  "description": "HD-style multiplayer tank arena using Node.js, Express, Socket.IO, and HTML5 Canvas.",
+  "name": "iron-battalion-tactical-semi3d-arena",
+  "version": "3.0.0",
+  "description": "Semi-3D HD multiplayer tank arena with mobile controls, upgrades, tactical mods, ricochet bullets, and kill-chain rewards.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js"
   },
-  "keywords": ["multiplayer", "socket.io", "canvas", "tank", "game"],
+  "keywords": [
+    "multiplayer",
+    "socket.io",
+    "canvas",
+    "tank",
+    "game",
+    "upgrade-tree",
+    "diep-io"
+  ],
   "author": "",
   "license": "MIT",
   "dependencies": {

@@ -1,35 +1,15 @@
-# Node.js dependencies
 node_modules/
-
-# Logs
-logs/
+.env
+.env.local
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
-
-# Environment variables
-.env
-.env.local
-.env.*.local
-
-# Build / cache
 dist/
 build/
 .cache/
-.parcel-cache/
-
-# OS files
 .DS_Store
 Thumbs.db
-
-# Editor
 .vscode/
 .idea/
-
-# Render / deployment temporary files
-.render/
-
-# Optional package manager files
-.pnpm-store/
