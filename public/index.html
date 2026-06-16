@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Iron Battalion — HD Multiplayer Tank</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #05070c; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #fff; }
+    canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
+    .hud {
+      position: fixed; inset: 0; pointer-events: none;
+      background: radial-gradient(circle at 50% 55%, transparent 0%, transparent 58%, rgba(0, 0, 0, .35) 100%);
+    }
+    .topbar {
+      position: fixed; top: 16px; left: 16px; right: 16px; display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; pointer-events: none;
+    }
+    .panel {
+      min-width: 230px; padding: 14px 16px; border: 1px solid rgba(255, 255, 255, .12); border-radius: 18px;
+      background: linear-gradient(180deg, rgba(11, 18, 32, .78), rgba(5, 8, 14, .68));
+      box-shadow: 0 18px 60px rgba(0, 0, 0, .38), inset 0 1px 0 rgba(255, 255, 255, .08);
+      backdrop-filter: blur(18px);
+    }
+    .brand { font-weight: 900; letter-spacing: .12em; font-size: 13px; color: #d8f7ff; text-transform: uppercase; }
+    .sub { margin-top: 6px; font-size: 12px; color: rgba(255, 255, 255, .66); line-height: 1.45; }
+    .hpWrap { margin-top: 12px; width: 100%; height: 10px; border-radius: 999px; background: rgba(255, 255, 255, .12); overflow: hidden; }
+    .hpBar { height: 100%; width: 100%; border-radius: 999px; background: linear-gradient(90deg, #22c55e, #eab308, #ef4444); transform-origin: left center; }
+    .leader { width: 260px; }
+    .leader h3 { margin: 0 0 10px; font-size: 12px; color: rgba(255, 255, 255, .72); letter-spacing: .14em; text-transform: uppercase; }
+    .leader ol { margin: 0; padding-left: 18px; font-size: 13px; color: rgba(255, 255, 255, .82); line-height: 1.8; }
+    .leader span { float: right; color: #9ee8ff; font-weight: 800; }
+    .controls {
+      position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); pointer-events: none;
+      padding: 11px 14px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, .12);
+      background: rgba(5, 8, 14, .56); backdrop-filter: blur(14px); color: rgba(255, 255, 255, .74); font-size: 12px;
+      box-shadow: 0 14px 50px rgba(0, 0, 0, .3);
+    }
+    .menu {
+      position: fixed; inset: 0; z-index: 10; display: grid; place-items: center;
+      background:
+        radial-gradient(circle at 25% 20%, rgba(0, 209, 255, .2), transparent 30%),
+        radial-gradient(circle at 78% 70%, rgba(251, 86, 7, .18), transparent 28%),
+        linear-gradient(135deg, rgba(2, 6, 23, .96), rgba(5, 7, 12, .98));
+    }
+    .card {
+      width: min(92vw, 530px); padding: 34px; border-radius: 28px;
+      background: linear-gradient(180deg, rgba(15, 23, 42, .86), rgba(2, 6, 23, .72));
+      border: 1px solid rgba(255, 255, 255, .14); box-shadow: 0 30px 100px rgba(0, 0, 0, .48), inset 0 1px 0 rgba(255, 255, 255, .1);
+      backdrop-filter: blur(20px); text-align: center;
+    }
+    .title { margin: 0; font-size: clamp(34px, 7vw, 58px); line-height: .95; letter-spacing: -.06em; }
+    .title strong { color: #00d1ff; text-shadow: 0 0 28px rgba(0, 209, 255, .42); }
+    .desc { margin: 16px auto 24px; color: rgba(255, 255, 255, .68); line-height: 1.65; max-width: 430px; }
+    input {
+      width: 100%; padding: 16px 18px; border: 1px solid rgba(255, 255, 255, .16); border-radius: 16px; outline: none;
+      background: rgba(255, 255, 255, .08); color: #fff; font-size: 16px; text-align: center;
+    }
+    input::placeholder { color: rgba(255, 255, 255, .42); }
+    button {
+      width: 100%; margin-top: 14px; padding: 16px 18px; border: 0; border-radius: 16px; cursor: pointer;
+      background: linear-gradient(135deg, #00d1ff, #0066ff); color: #fff; font-size: 15px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase;
+      box-shadow: 0 18px 50px rgba(0, 102, 255, .34);
+    }
+    .hidden { display: none; }
+    @media (max-width: 680px) {
+      .topbar { align-items: stretch; flex-direction: column; right: auto; }
+      .leader { display: none; }
+      .controls { width: calc(100vw - 24px); text-align: center; white-space: normal; border-radius: 18px; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="game"></canvas>
+
+  <div id="menu" class="menu">
+    <div class="card">
+      <h1 class="title">IRON <strong>BATTALION</strong></h1>
+      <p class="desc">Multiplayer tank arena bergaya HD. Masuk satu link, bergerak real-time, tembak lawan, dapatkan skor, dan respawn otomatis.</p>
+      <input id="nameInput" maxlength="16" placeholder="Nama pemain kamu" autocomplete="off" />
+      <button id="playBtn">Masuk Arena</button>
+    </div>
+  </div>
+
+  <div class="hud"></div>
+  <div class="topbar">
+    <div class="panel">
+      <div class="brand">Iron Battalion</div>
+      <div id="status" class="sub">Menunggu pemain...</div>
+      <div class="hpWrap"><div id="hpBar" class="hpBar"></div></div>
+    </div>
+    <div class="panel leader">
+      <h3>Leaderboard</h3>
+      <ol id="leaderboard"><li>Belum ada skor <span>0</span></li></ol>
+    </div>
+  </div>
+  <div class="controls">WASD / Arrow = gerak • Mouse = arah meriam • Klik kiri / Space = tembak</div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+    const menu = document.getElementById('menu');
+    const nameInput = document.getElementById('nameInput');
+    const playBtn = document.getElementById('playBtn');
+    const statusEl = document.getElementById('status');
+    const hpBar = document.getElementById('hpBar');
+    const leaderboardEl = document.getElementById('leaderboard');
+
+    let dpr = 1;
+    let world = { width: 2200, height: 1400 };
+    let obstacles = [];
+    let players = {};
+    let bullets = [];
+    let leaderboard = [];
+    let joined = false;
+    let myId = null;
+    let camera = { x: 0, y: 0 };
+    let mouse = { x: 0, y: 0, worldX: 0, worldY: 0 };
+    const keys = new Set();
+    const particles = [];
+    const lastBullets = new Map();
+    let shootingMouse = false;
+
+    function resize() {
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.floor(window.innerWidth * dpr);
+      canvas.height = Math.floor(window.innerHeight * dpr);
+      canvas.style.width = `${window.innerWidth}px`;
+      canvas.style.height = `${window.innerHeight}px`;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    window.addEventListener('resize', resize);
+    resize();
+
+    function screenToWorld(x, y) {
+      return {
+        x: x + camera.x - window.innerWidth / 2,
+        y: y + camera.y - window.innerHeight / 2,
+      };
+    }
+
+    window.addEventListener('mousemove', (e) => {
+      mouse.x = e.clientX;
+      mouse.y = e.clientY;
+      const w = screenToWorld(mouse.x, mouse.y);
+      mouse.worldX = w.x;
+      mouse.worldY = w.y;
+    });
+
+    window.addEventListener('mousedown', () => { shootingMouse = true; });
+    window.addEventListener('mouseup', () => { shootingMouse = false; });
+    window.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    window.addEventListener('keydown', (e) => {
+      keys.add(e.key.toLowerCase());
+      if ([' ', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(e.key.toLowerCase())) e.preventDefault();
+    });
+    window.addEventListener('keyup', (e) => keys.delete(e.key.toLowerCase()));
+
+    playBtn.addEventListener('click', joinGame);
+    nameInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') joinGame();
+    });
+
+    function joinGame() {
+      const name = nameInput.value.trim() || `Player-${Math.floor(Math.random() * 999)}`;
+      socket.emit('join', { name });
+      joined = true;
+      menu.classList.add('hidden');
+    }
+
+    socket.on('init', (data) => {
+      myId = data.id;
+      world = data.world;
+      obstacles = data.obstacles || [];
+    });
+
+    socket.on('joined', (data) => {
+      myId = data.id;
+    });
+
+    socket.on('snapshot', (data) => {
+      players = data.players || {};
+      leaderboard = data.leaderboard || [];
+
+      const incomingBullets = data.bullets || [];
+      const incomingIds = new Set(incomingBullets.map((b) => b.id));
+      for (const [id, b] of lastBullets.entries()) {
+        if (!incomingIds.has(id)) spawnSparks(b.x, b.y, b.angle);
+      }
+      lastBullets.clear();
+      incomingBullets.forEach((b) => lastBullets.set(b.id, b));
+      bullets = incomingBullets;
+
+      renderHud();
+    });
+
+    function buildInput() {
+      const p = players[myId];
+      const aimAngle = p ? Math.atan2(mouse.worldY - p.y, mouse.worldX - p.x) : 0;
+      return {
+        up: keys.has('w') || keys.has('arrowup'),
+        down: keys.has('s') || keys.has('arrowdown'),
+        left: keys.has('a') || keys.has('arrowleft'),
+        right: keys.has('d') || keys.has('arrowright'),
+        shooting: shootingMouse || keys.has(' '),
+        aimAngle,
+      };
+    }
+
+    setInterval(() => {
+      if (!joined) return;
+      socket.emit('input', buildInput());
+    }, 1000 / 45);
+
+    function renderHud() {
+      const me = players[myId];
+      const playerCount = Object.keys(players).length;
+      if (!me) {
+        statusEl.textContent = `${playerCount} pemain online`;
+        hpBar.style.transform = 'scaleX(0)';
+        return;
+      }
+      statusEl.textContent = me.alive
+        ? `${me.name} • HP ${me.hp}/${me.maxHp} • Skor ${me.score} • ${playerCount} online`
+        : `${me.name} destroyed • Respawn ${me.respawnIn}s • Skor ${me.score}`;
+      hpBar.style.transform = `scaleX(${Math.max(0, me.hp / me.maxHp)})`;
+
+      leaderboardEl.innerHTML = leaderboard.length
+        ? leaderboard.map((item) => `<li>${escapeHtml(item.name)} <span>${item.score}</span></li>`).join('')
+        : '<li>Belum ada skor <span>0</span></li>';
+    }
+
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[char]));
+    }
+
+    function updateCamera() {
+      const me = players[myId];
+      const targetX = me ? me.x : world.width / 2;
+      const targetY = me ? me.y : world.height / 2;
+      camera.x += (targetX - camera.x) * 0.08;
+      camera.y += (targetY - camera.y) * 0.08;
+      camera.x = Math.max(window.innerWidth / 2, Math.min(world.width - window.innerWidth / 2, camera.x));
+      camera.y = Math.max(window.innerHeight / 2, Math.min(world.height - window.innerHeight / 2, camera.y));
+
+      const w = screenToWorld(mouse.x, mouse.y);
+      mouse.worldX = w.x;
+      mouse.worldY = w.y;
+    }
+
+    function worldTransform() {
+      ctx.translate(window.innerWidth / 2 - camera.x, window.innerHeight / 2 - camera.y);
+    }
+
+    function drawBackground() {
+      const grd = ctx.createLinearGradient(0, 0, world.width, world.height);
+      grd.addColorStop(0, '#101827');
+      grd.addColorStop(0.5, '#0a101d');
+      grd.addColorStop(1, '#111827');
+      ctx.fillStyle = grd;
+      ctx.fillRect(0, 0, world.width, world.height);
+
+      ctx.save();
+      ctx.globalAlpha = 0.22;
+      ctx.strokeStyle = '#263244';
+      ctx.lineWidth = 1;
+      const grid = 64;
+      for (let x = 0; x <= world.width; x += grid) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, world.height); ctx.stroke();
+      }
+      for (let y = 0; y <= world.height; y += grid) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(world.width, y); ctx.stroke();
+      }
+      ctx.restore();
+
+      ctx.save();
+      ctx.globalAlpha = 0.09;
+      for (let i = 0; i < 55; i++) {
+        const x = (i * 421) % world.width;
+        const y = (i * 277) % world.height;
+        ctx.fillStyle = i % 2 ? '#ffffff' : '#00d1ff';
+        ctx.beginPath();
+        ctx.arc(x, y, 1 + (i % 3), 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    function drawObstacles() {
+      obstacles.forEach((o) => {
+        ctx.save();
+        ctx.shadowColor = 'rgba(0,0,0,.55)';
+        ctx.shadowBlur = 22;
+        ctx.shadowOffsetY = 14;
+        const grd = ctx.createLinearGradient(o.x, o.y, o.x, o.y + o.h);
+        if (o.type === 'crate') {
+          grd.addColorStop(0, '#8b5a2b');
+          grd.addColorStop(1, '#4b2f18');
+        } else {
+          grd.addColorStop(0, '#3c465a');
+          grd.addColorStop(1, '#141b28');
+        }
+        roundRect(o.x, o.y, o.w, o.h, 10);
+        ctx.fillStyle = grd;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = 'rgba(255,255,255,.1)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.restore();
+      });
+    }
+
+    function drawTank(t) {
+      ctx.save();
+      ctx.translate(t.x, t.y);
+      ctx.globalAlpha = t.alive ? 1 : 0.38;
+
+      ctx.save();
+      ctx.rotate(t.bodyAngle);
+      ctx.shadowColor = 'rgba(0,0,0,.65)';
+      ctx.shadowBlur = 24;
+      ctx.shadowOffsetY = 12;
+
+      ctx.fillStyle = 'rgba(0,0,0,.42)';
+      roundRect(-32, -23, 64, 46, 10);
+      ctx.fill();
+
+      const body = ctx.createLinearGradient(-28, -20, 32, 20);
+      body.addColorStop(0, shade(t.color, -35));
+      body.addColorStop(0.48, t.color);
+      body.addColorStop(1, shade(t.color, 30));
+
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = '#111827';
+      roundRect(-38, -24, 16, 48, 8);
+      ctx.fill();
+      roundRect(22, -24, 16, 48, 8);
+      ctx.fill();
+
+      ctx.fillStyle = body;
+      roundRect(-30, -20, 60, 40, 12);
+      ctx.fill();
+
+      ctx.globalAlpha *= 0.26;
+      ctx.fillStyle = '#fff';
+      roundRect(-21, -13, 42, 9, 4);
+      ctx.fill();
+      ctx.globalAlpha = t.alive ? 1 : 0.38;
+      ctx.restore();
+
+      ctx.save();
+      ctx.rotate(t.turretAngle);
+      ctx.fillStyle = '#111827';
+      roundRect(0, -6, 48, 12, 6);
+      ctx.fill();
+      const turret = ctx.createRadialGradient(0, 0, 3, 0, 0, 24);
+      turret.addColorStop(0, shade(t.color, 45));
+      turret.addColorStop(1, shade(t.color, -35));
+      ctx.fillStyle = turret;
+      ctx.beginPath();
+      ctx.arc(0, 0, 18, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      if (t.id === myId && t.alive) {
+        ctx.save();
+        ctx.strokeStyle = 'rgba(0, 209, 255, .36)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(0, 0, 42 + Math.sin(performance.now() / 180) * 3, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      ctx.restore();
+
+      drawNameTag(t);
+    }
+
+    function drawNameTag(t) {
+      const width = 74;
+      const hp = Math.max(0, t.hp / t.maxHp);
+      ctx.save();
+      ctx.font = '12px Inter, system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = 'rgba(255,255,255,.86)';
+      ctx.fillText(t.name, t.x, t.y - 48);
+      ctx.fillStyle = 'rgba(0,0,0,.35)';
+      roundRect(t.x - width / 2, t.y - 39, width, 6, 999);
+      ctx.fill();
+      ctx.fillStyle = hp > .55 ? '#22c55e' : hp > .28 ? '#eab308' : '#ef4444';
+      roundRect(t.x - width / 2, t.y - 39, width * hp, 6, 999);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function drawBullets() {
+      bullets.forEach((b) => {
+        ctx.save();
+        ctx.translate(b.x, b.y);
+        ctx.rotate(b.angle);
+        ctx.shadowColor = '#ffe066';
+        ctx.shadowBlur = 16;
+        ctx.fillStyle = '#fff4a3';
+        ctx.beginPath();
+        ctx.arc(0, 0, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = .35;
+        ctx.fillStyle = '#ffb703';
+        roundRect(-24, -2, 22, 4, 999);
+        ctx.fill();
+        ctx.restore();
+      });
+    }
+
+    function spawnSparks(x, y, angle) {
+      for (let i = 0; i < 7; i++) {
+        particles.push({
+          x, y,
+          vx: Math.cos(angle + Math.PI + (Math.random() - .5) * 1.8) * (80 + Math.random() * 190),
+          vy: Math.sin(angle + Math.PI + (Math.random() - .5) * 1.8) * (80 + Math.random() * 190),
+          life: .32 + Math.random() * .22,
+          maxLife: .54,
+          size: 2 + Math.random() * 3,
+        });
+      }
+    }
+
+    function updateParticles(dt) {
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.life -= dt;
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.vx *= .94;
+        p.vy *= .94;
+        if (p.life <= 0) particles.splice(i, 1);
+      }
+    }
+
+    function drawParticles() {
+      particles.forEach((p) => {
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, p.life / p.maxLife);
+        ctx.fillStyle = '#ffd166';
+        ctx.shadowColor = '#ffb703';
+        ctx.shadowBlur = 12;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      });
+    }
+
+    function drawMinimap() {
+      const w = 190;
+      const h = 122;
+      const x = window.innerWidth - w - 18;
+      const y = window.innerHeight - h - 18;
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.fillStyle = 'rgba(4,8,16,.62)';
+      roundRect(x, y, w, h, 16);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,.14)';
+      ctx.stroke();
+      const sx = w / world.width;
+      const sy = h / world.height;
+      obstacles.forEach((o) => {
+        ctx.fillStyle = 'rgba(255,255,255,.16)';
+        ctx.fillRect(x + o.x * sx, y + o.y * sy, o.w * sx, o.h * sy);
+      });
+      Object.values(players).forEach((p) => {
+        ctx.fillStyle = p.id === myId ? '#00d1ff' : p.color;
+        ctx.beginPath();
+        ctx.arc(x + p.x * sx, y + p.y * sy, p.id === myId ? 4 : 3, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      ctx.restore();
+    }
+
+    function roundRect(x, y, w, h, r) {
+      const radius = Math.min(r, Math.abs(w) / 2, Math.abs(h) / 2);
+      ctx.beginPath();
+      ctx.moveTo(x + radius, y);
+      ctx.arcTo(x + w, y, x + w, y + h, radius);
+      ctx.arcTo(x + w, y + h, x, y + h, radius);
+      ctx.arcTo(x, y + h, x, y, radius);
+      ctx.arcTo(x, y, x + w, y, radius);
+      ctx.closePath();
+    }
+
+    function shade(hex, percent) {
+      const clean = hex.replace('#', '');
+      const num = parseInt(clean, 16);
+      const amt = Math.round(2.55 * percent);
+      const r = Math.max(0, Math.min(255, (num >> 16) + amt));
+      const g = Math.max(0, Math.min(255, ((num >> 8) & 0x00ff) + amt));
+      const b = Math.max(0, Math.min(255, (num & 0x0000ff) + amt));
+      return `#${(0x1000000 + r * 0x10000 + g * 0x100 + b).toString(16).slice(1)}`;
+    }
+
+    let lastFrame = performance.now();
+    function loop(now) {
+      const dt = Math.min(0.04, (now - lastFrame) / 1000);
+      lastFrame = now;
+      updateCamera();
+      updateParticles(dt);
+
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+
+      ctx.save();
+      worldTransform();
+      drawBackground();
+      drawObstacles();
+      drawParticles();
+      drawBullets();
+      Object.values(players).sort((a, b) => a.y - b.y).forEach(drawTank);
+      ctx.restore();
+
+      drawMinimap();
+      requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>
