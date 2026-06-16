@@ -179,7 +179,7 @@
   <div id="menu" class="menu">
     <div class="card">
       <h1 class="title">IRON <strong>BATTALION</strong></h1>
-      <p class="desc">Multiplayer tank arena semi-3D dengan XP, weapon tree, kill-chain reward, heal, tactical mods, ricochet bullets, dan build OP seperti Diep.io.</p>
+      <p class="desc">Multiplayer tank arena semi-3D dengan XP, weapon tree, tactical mods, peluru biru/merah, dan obstacle farming: tembak crate/supply core untuk naik level tanpa harus kill musuh.</p>
       <input id="nameInput" maxlength="16" placeholder="Nama pemain kamu" autocomplete="off" />
       <button id="playBtn">Masuk Arena</button>
     </div>
@@ -224,7 +224,7 @@
   </div>
 
   <div id="toast" class="toast"></div>
-  <div class="controls">WASD / Arrow = gerak • Mouse = aim • Klik/Space = tembak • U = upgrade • Ricochet/Burst/Explosive tersedia</div>
+  <div class="controls">WASD / Arrow = gerak • Klik/Space = tembak • U = upgrade • Biru = kamu • Merah = musuh • Crate/Core bisa ditembak untuk XP</div>
 
   <script src="/socket.io/socket.io.js"></script>
   <script>
@@ -277,6 +277,27 @@
       aimAngle: 0,
       hasAim: false,
     };
+
+    const TEAM_BULLET = {
+      self: '#38bdf8',
+      selfCore: '#e0f2fe',
+      selfRing: '#7dd3fc',
+      enemy: '#ef4444',
+      enemyCore: '#fee2e2',
+      enemyRing: '#fca5a5',
+    };
+
+    function decorateBulletForClient(b) {
+      const isMine = b.ownerId === myId;
+      return {
+        ...b,
+        weaponColor: b.color,
+        color: isMine ? TEAM_BULLET.self : TEAM_BULLET.enemy,
+        coreColor: isMine ? TEAM_BULLET.selfCore : TEAM_BULLET.enemyCore,
+        ringColor: isMine ? TEAM_BULLET.selfRing : TEAM_BULLET.enemyRing,
+        team: isMine ? 'self' : 'enemy',
+      };
+    }
 
     function resize() {
       dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -490,8 +511,9 @@
       const previousPlayers = players;
       players = data.players || {};
       leaderboard = data.leaderboard || [];
+      obstacles = data.obstacles || obstacles;
 
-      const incomingBullets = data.bullets || [];
+      const incomingBullets = (data.bullets || []).map(decorateBulletForClient);
       const incomingIds = new Set(incomingBullets.map((b) => b.id));
       const existingIds = new Set(lastBullets.keys());
       for (const [id, b] of lastBullets.entries()) {
@@ -546,7 +568,7 @@
       }
       const xpPercent = me.xpToNext > 0 ? Math.max(0, Math.min(1, me.xp / me.xpToNext)) : 1;
       statusEl.textContent = me.alive
-        ? `${me.name} • Lv ${me.level} • ${me.weaponName} • HP ${me.hp}/${me.maxHp} • Kill chain ${me.killStreak || 0} • Points ${me.upgradePoints}`
+        ? `${me.name} • Lv ${me.level} • ${me.weaponName} • HP ${me.hp}/${me.maxHp} • Kill chain ${me.killStreak || 0} • Farm ${me.obstacleBreaks || 0} • Points ${me.upgradePoints}`
         : `${me.name} destroyed • Respawn ${me.respawnIn}s • Lv ${me.level} • Skor ${me.score}`;
       hpBar.style.transform = `scaleX(${Math.max(0, me.hp / me.maxHp)})`;
       xpBar.style.transform = `scaleX(${xpPercent})`;
@@ -566,7 +588,7 @@
       if (me.upgradePoints > lastUpgradePoints) upgradePanel.classList.add('open');
       lastUpgradePoints = me.upgradePoints;
 
-      upgradeSummary.textContent = `Level ${me.level} • ${me.weaponName} • Kill chain ${me.killStreak || 0} • Point: ${me.upgradePoints}`;
+      upgradeSummary.textContent = `Level ${me.level} • ${me.weaponName} • Kill chain ${me.killStreak || 0} • Farm ${me.obstacleBreaks || 0} • Point: ${me.upgradePoints}`;
       const tacticalPills = Object.entries(me.tactical || {}).filter(([, level]) => level > 0).map(([id, level]) => `<div class="pill">${escapeHtml(titleCase(id))} Lv ${level}</div>`);
       weaponPathEl.innerHTML = [ ...(me.weaponPath || []).map((id) => `<div class="pill">${escapeHtml(titleCase(id))}</div>`), ...tacticalPills ].join('');
 
@@ -731,13 +753,14 @@
 
     function drawObstacles() {
       obstacles
+        .filter((o) => !o.destroyed)
         .slice()
         .sort((a, b) => (a.y + a.h) - (b.y + b.h))
         .forEach(draw3DObstacle);
     }
 
     function draw3DObstacle(o) {
-      const height = o.type === 'crate' ? 24 : 38;
+      const height = o.type === 'core' ? 30 : o.type === 'crate' ? 24 : 38;
       ctx.save();
 
       ctx.fillStyle = 'rgba(0,0,0,.34)';
@@ -750,6 +773,9 @@
       if (o.type === 'crate') {
         top.addColorStop(0, '#a9793f'); top.addColorStop(.55, '#7b4a24'); top.addColorStop(1, '#41230f');
         side.addColorStop(0, '#5c3216'); side.addColorStop(1, '#211005');
+      } else if (o.type === 'core') {
+        top.addColorStop(0, '#67e8f9'); top.addColorStop(.45, '#2563eb'); top.addColorStop(1, '#312e81');
+        side.addColorStop(0, '#1e3a8a'); side.addColorStop(1, '#0f172a');
       } else {
         top.addColorStop(0, '#59677e'); top.addColorStop(.48, '#303b4e'); top.addColorStop(1, '#111827');
         side.addColorStop(0, '#1d2635'); side.addColorStop(1, '#070b12');
@@ -772,6 +798,35 @@
       ctx.strokeStyle = '#ffffff';
       for (let x = o.x + 20; x < o.x + o.w; x += 44) {
         ctx.beginPath(); ctx.moveTo(x, o.y + 9); ctx.lineTo(x - 28, o.y + o.h - 9); ctx.stroke();
+      }
+
+      if (o.type === 'core') {
+        ctx.globalAlpha = .55;
+        ctx.shadowColor = '#38bdf8';
+        ctx.shadowBlur = 24;
+        ctx.fillStyle = 'rgba(125,211,252,.32)';
+        ctx.beginPath(); ctx.arc(o.x + o.w / 2, o.y + o.h / 2, Math.min(o.w, o.h) * .25, 0, Math.PI * 2); ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+
+      if (o.destructible && o.maxHp > 0) {
+        const hp = Math.max(0, Math.min(1, (o.hp || 0) / o.maxHp));
+        const barW = Math.min(90, Math.max(48, o.w * .65));
+        const bx = o.x + o.w / 2 - barW / 2;
+        const by = o.y - 14;
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = 'rgba(0,0,0,.48)';
+        roundRect(bx, by, barW, 7, 999); ctx.fill();
+        const bar = ctx.createLinearGradient(bx, by, bx + barW, by);
+        bar.addColorStop(0, '#22c55e');
+        bar.addColorStop(.55, '#eab308');
+        bar.addColorStop(1, '#ef4444');
+        ctx.fillStyle = bar;
+        roundRect(bx, by, barW * hp, 7, 999); ctx.fill();
+        ctx.fillStyle = 'rgba(216,247,255,.78)';
+        ctx.font = '9px Inter, system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(`XP +${o.xpReward || 0}`, o.x + o.w / 2, by - 4);
       }
       ctx.restore();
     }
@@ -983,10 +1038,10 @@
         ctx.translate(b.x, b.y);
         ctx.rotate(b.angle);
         ctx.shadowColor = b.color || '#ffe066';
-        ctx.shadowBlur = 18 + radius * 2.4;
-        const core = ctx.createRadialGradient(0, 0, 1, 0, 0, radius + 8);
-        core.addColorStop(0, '#ffffff');
-        core.addColorStop(.35, b.color || '#fff4a3');
+        ctx.shadowBlur = 20 + radius * 2.6;
+        const core = ctx.createRadialGradient(0, 0, 1, 0, 0, radius + 9);
+        core.addColorStop(0, b.coreColor || '#ffffff');
+        core.addColorStop(.33, b.color || '#fff4a3');
         core.addColorStop(1, 'rgba(255,255,255,0)');
         ctx.fillStyle = core;
         ctx.beginPath(); ctx.arc(0, 0, radius + 8, 0, Math.PI * 2); ctx.fill();
@@ -994,13 +1049,13 @@
         ctx.beginPath(); ctx.arc(0, 0, radius, 0, Math.PI * 2); ctx.fill();
         if ((b.bounces || 0) > 0) {
           ctx.globalAlpha = .72;
-          ctx.strokeStyle = '#9ee8ff';
+          ctx.strokeStyle = b.ringColor || '#9ee8ff';
           ctx.lineWidth = 2;
           ctx.beginPath(); ctx.arc(0, 0, radius + 6 + b.bounces * 2, 0, Math.PI * 2); ctx.stroke();
         }
         if ((b.splashRadius || 0) > 0) {
           ctx.globalAlpha = .32;
-          ctx.strokeStyle = '#ffb703';
+          ctx.strokeStyle = b.team === 'self' ? 'rgba(56,189,248,.9)' : 'rgba(239,68,68,.9)';
           ctx.lineWidth = 2;
           ctx.beginPath(); ctx.arc(0, 0, radius + 12, 0, Math.PI * 2); ctx.stroke();
         }
@@ -1114,8 +1169,8 @@
       ctx.stroke();
       const sx = w / world.width;
       const sy = h / world.height;
-      obstacles.forEach((o) => {
-        ctx.fillStyle = 'rgba(255,255,255,.16)';
+      obstacles.filter((o) => !o.destroyed).forEach((o) => {
+        ctx.fillStyle = o.destructible ? (o.type === 'core' ? 'rgba(56,189,248,.5)' : 'rgba(251,191,36,.42)') : 'rgba(255,255,255,.16)';
         ctx.fillRect(x + o.x * sx, y + o.y * sy, o.w * sx, o.h * sy);
       });
       Object.values(players).forEach((p) => {

@@ -19,20 +19,24 @@ const TANK_RADIUS = 28;
 const BULLET_RADIUS = 5;
 const MAX_LEVEL = 30;
 
-const obstacles = [
-  { x: 260, y: 240, w: 260, h: 80, type: 'wall' },
-  { x: 760, y: 180, w: 120, h: 360, type: 'wall' },
-  { x: 1180, y: 260, w: 420, h: 80, type: 'wall' },
-  { x: 1760, y: 190, w: 170, h: 240, type: 'wall' },
-  { x: 2140, y: 320, w: 120, h: 320, type: 'wall' },
-  { x: 240, y: 700, w: 360, h: 90, type: 'wall' },
-  { x: 820, y: 780, w: 260, h: 170, type: 'crate' },
-  { x: 1320, y: 720, w: 130, h: 380, type: 'wall' },
-  { x: 1640, y: 800, w: 340, h: 90, type: 'wall' },
-  { x: 2040, y: 940, w: 190, h: 120, type: 'crate' },
-  { x: 520, y: 1230, w: 260, h: 90, type: 'wall' },
-  { x: 1040, y: 1260, w: 360, h: 90, type: 'wall' },
-  { x: 1720, y: 1220, w: 230, h: 120, type: 'crate' },
+let obstacles = [
+  { id: 'wall_1', x: 260, y: 240, w: 260, h: 80, type: 'wall', destructible: false, hp: 0, maxHp: 0, xpReward: 0 },
+  { id: 'wall_2', x: 760, y: 180, w: 120, h: 360, type: 'wall', destructible: false, hp: 0, maxHp: 0, xpReward: 0 },
+  { id: 'wall_3', x: 1180, y: 260, w: 420, h: 80, type: 'wall', destructible: false, hp: 0, maxHp: 0, xpReward: 0 },
+  { id: 'wall_4', x: 1760, y: 190, w: 170, h: 240, type: 'wall', destructible: false, hp: 0, maxHp: 0, xpReward: 0 },
+  { id: 'wall_5', x: 2140, y: 320, w: 120, h: 320, type: 'wall', destructible: false, hp: 0, maxHp: 0, xpReward: 0 },
+  { id: 'wall_6', x: 240, y: 700, w: 360, h: 90, type: 'wall', destructible: false, hp: 0, maxHp: 0, xpReward: 0 },
+  { id: 'crate_1', x: 820, y: 780, w: 260, h: 170, type: 'crate', destructible: true, hp: 145, maxHp: 145, xpReward: 42, respawnMs: 15000, destroyed: false, respawnAt: 0 },
+  { id: 'wall_7', x: 1320, y: 720, w: 130, h: 380, type: 'wall', destructible: false, hp: 0, maxHp: 0, xpReward: 0 },
+  { id: 'wall_8', x: 1640, y: 800, w: 340, h: 90, type: 'wall', destructible: false, hp: 0, maxHp: 0, xpReward: 0 },
+  { id: 'crate_2', x: 2040, y: 940, w: 190, h: 120, type: 'crate', destructible: true, hp: 120, maxHp: 120, xpReward: 36, respawnMs: 14000, destroyed: false, respawnAt: 0 },
+  { id: 'wall_9', x: 520, y: 1230, w: 260, h: 90, type: 'wall', destructible: false, hp: 0, maxHp: 0, xpReward: 0 },
+  { id: 'wall_10', x: 1040, y: 1260, w: 360, h: 90, type: 'wall', destructible: false, hp: 0, maxHp: 0, xpReward: 0 },
+  { id: 'crate_3', x: 1720, y: 1220, w: 230, h: 120, type: 'crate', destructible: true, hp: 130, maxHp: 130, xpReward: 38, respawnMs: 14500, destroyed: false, respawnAt: 0 },
+  { id: 'core_1', x: 620, y: 430, w: 72, h: 72, type: 'core', destructible: true, hp: 75, maxHp: 75, xpReward: 30, respawnMs: 12000, destroyed: false, respawnAt: 0 },
+  { id: 'core_2', x: 1515, y: 510, w: 76, h: 76, type: 'core', destructible: true, hp: 80, maxHp: 80, xpReward: 32, respawnMs: 12000, destroyed: false, respawnAt: 0 },
+  { id: 'core_3', x: 310, y: 1020, w: 74, h: 74, type: 'core', destructible: true, hp: 75, maxHp: 75, xpReward: 30, respawnMs: 12000, destroyed: false, respawnAt: 0 },
+  { id: 'core_4', x: 2090, y: 1250, w: 78, h: 78, type: 'core', destructible: true, hp: 82, maxHp: 82, xpReward: 34, respawnMs: 13000, destroyed: false, respawnAt: 0 },
 ];
 
 const colors = [
@@ -105,11 +109,11 @@ const STAT_UPGRADES = {
 };
 
 const TACTICAL_UPGRADES = {
-  ricochet: { id: 'ricochet', name: 'Ricochet Core', max: 2, desc: 'Peluru bisa mantul dari tembok. Lv 2 mantul dua kali.' },
-  burst: { id: 'burst', name: 'Burst Trigger', max: 2, desc: 'Tambah peluru samping kecil setiap menembak.' },
-  explosive: { id: 'explosive', name: 'Explosive Shell', max: 2, desc: 'Peluru memberi splash damage di area kecil.' },
+  ricochet: { id: 'ricochet', name: 'Ricochet Core', max: 1, desc: 'Peluru bisa mantul 1x dari tembok, tapi damage turun setelah mantul.' },
+  burst: { id: 'burst', name: 'Burst Trigger', max: 2, desc: 'Tambah peluru samping kecil, damage ekstra sudah dinerf.' },
+  explosive: { id: 'explosive', name: 'Explosive Shell', max: 2, desc: 'Splash damage kecil. Kuat untuk farming obstacle, tidak terlalu OP di duel.' },
   killHeal: { id: 'killHeal', name: 'Vampiric Repair', max: 3, desc: 'Heal lebih besar setiap berhasil kill musuh.' },
-  armor: { id: 'armor', name: 'Reactive Armor', max: 3, desc: 'Mengurangi damage yang diterima.' },
+  armor: { id: 'armor', name: 'Reactive Armor', max: 3, desc: 'Mengurangi damage sedikit. Dinerf supaya tank tebal tidak abadi.' },
 };
 
 const players = new Map();
@@ -137,7 +141,7 @@ function circleRectCollision(cx, cy, radius, rect) {
 
 function isBlocked(x, y, radius = TANK_RADIUS) {
   if (x < radius || y < radius || x > WORLD.width - radius || y > WORLD.height - radius) return true;
-  return obstacles.some((rect) => circleRectCollision(x, y, radius, rect));
+  return obstacles.some((rect) => !rect.destroyed && circleRectCollision(x, y, radius, rect));
 }
 
 function randomSpawn() {
@@ -231,6 +235,7 @@ function serializePlayers() {
       xpToNext: xpToNext(p.level),
       upgradePoints: p.upgradePoints,
       killStreak: p.killStreak || 0,
+      obstacleBreaks: p.obstacleBreaks || 0,
       tactical: p.tactical,
       tacticalOptions: tacticalOptionsFor(p),
       weapon: p.weapon,
@@ -263,9 +268,27 @@ function serializeBullets() {
   return data;
 }
 
+function serializeObstacles() {
+  const now = Date.now();
+  return obstacles.map((o) => ({
+    id: o.id,
+    x: o.x,
+    y: o.y,
+    w: o.w,
+    h: o.h,
+    type: o.type,
+    destructible: Boolean(o.destructible),
+    hp: Math.max(0, Math.round(o.hp || 0)),
+    maxHp: Math.round(o.maxHp || 0),
+    xpReward: o.xpReward || 0,
+    destroyed: Boolean(o.destroyed),
+    respawnIn: o.destroyed && o.respawnAt ? Math.max(0, Math.ceil((o.respawnAt - now) / 1000)) : 0,
+  }));
+}
+
 function leaderboard() {
   return [...players.values()]
-    .map((p) => ({ id: p.id, name: p.name, score: p.score, deaths: p.deaths, level: p.level, killStreak: p.killStreak || 0, weaponName: WEAPON_TREE[p.weapon]?.name || 'Basic Tank' }))
+    .map((p) => ({ id: p.id, name: p.name, score: p.score, deaths: p.deaths, level: p.level, killStreak: p.killStreak || 0, obstacleBreaks: p.obstacleBreaks || 0, weaponName: WEAPON_TREE[p.weapon]?.name || 'Basic Tank' }))
     .sort((a, b) => b.score - a.score || b.level - a.level || a.deaths - b.deaths)
     .slice(0, 6);
 }
@@ -287,6 +310,7 @@ function spawnPlayer(socket, name) {
     score: 0,
     deaths: 0,
     killStreak: 0,
+    obstacleBreaks: 0,
     level: 1,
     xp: 0,
     upgradePoints: 3,
@@ -356,10 +380,10 @@ function movePlayer(player, dt) {
 
 function weaponSpec(player) {
   const stats = player.stats;
-  const damageMult = 1 + stats.damage * 0.12;
-  const reloadDiv = 1 + stats.reload * 0.15;
-  const speedMult = 1 + stats.bulletSpeed * 0.075;
-  const lifeMult = 1 + stats.bulletSpeed * 0.045;
+  const damageMult = 1 + stats.damage * 0.10;
+  const reloadDiv = 1 + stats.reload * 0.12;
+  const speedMult = 1 + stats.bulletSpeed * 0.06;
+  const lifeMult = 1 + stats.bulletSpeed * 0.035;
 
   const specs = {
     basic: { cooldown: 230, damage: 24, speed: 760, life: 1.7, radius: 5, shots: [{ angle: 0, offset: 0 }], inaccuracy: 0, pierce: 0, color: '#fff4a3' },
@@ -367,13 +391,13 @@ function weaponSpec(player) {
     triple: { cooldown: 310, damage: 19, speed: 770, life: 1.65, radius: 5, shots: [{ angle: -0.16, offset: -14 }, { angle: 0, offset: 0 }, { angle: 0.16, offset: 14 }], inaccuracy: 0, pierce: 0, color: '#bbf7d0' },
     flanker: { cooldown: 245, damage: 21, speed: 770, life: 1.65, radius: 5, shots: [{ angle: 0, offset: 0 }, { angle: Math.PI, offset: 0 }], inaccuracy: 0, pierce: 0, color: '#99f6e4' },
     sniper: { cooldown: 550, damage: 48, speed: 1100, life: 2.7, radius: 5, shots: [{ angle: 0, offset: 0 }], inaccuracy: 0, pierce: 0, color: '#bfdbfe' },
-    railgun: { cooldown: 780, damage: 74, speed: 1360, life: 3.2, radius: 7, shots: [{ angle: 0, offset: 0 }], inaccuracy: 0, pierce: 1, color: '#e0f2fe' },
-    assassin: { cooldown: 500, damage: 60, speed: 1480, life: 3.4, radius: 4, shots: [{ angle: 0, offset: 0 }], inaccuracy: 0, pierce: 0, color: '#dbeafe' },
+    railgun: { cooldown: 820, damage: 68, speed: 1360, life: 3.2, radius: 7, shots: [{ angle: 0, offset: 0 }], inaccuracy: 0, pierce: 1, color: '#e0f2fe' },
+    assassin: { cooldown: 540, damage: 55, speed: 1480, life: 3.4, radius: 4, shots: [{ angle: 0, offset: 0 }], inaccuracy: 0, pierce: 0, color: '#dbeafe' },
     machine: { cooldown: 105, damage: 14, speed: 720, life: 1.25, radius: 4, shots: [{ angle: 0, offset: 0 }], inaccuracy: 0.055, pierce: 0, color: '#fde68a' },
-    minigun: { cooldown: 60, damage: 9, speed: 735, life: 1.15, radius: 4, shots: [{ angle: 0, offset: 0 }], inaccuracy: 0.09, pierce: 0, color: '#fef08a' },
-    shotgun: { cooldown: 520, damage: 13, speed: 760, life: 0.78, radius: 4, shots: [-0.36, -0.24, -0.12, 0, 0.12, 0.24, 0.36].map((angle, index) => ({ angle, offset: (index - 3) * 4 })), inaccuracy: 0.06, pierce: 0, color: '#fed7aa' },
+    minigun: { cooldown: 74, damage: 8, speed: 735, life: 1.15, radius: 4, shots: [{ angle: 0, offset: 0 }], inaccuracy: 0.09, pierce: 0, color: '#fef08a' },
+    shotgun: { cooldown: 560, damage: 11, speed: 760, life: 0.78, radius: 4, shots: [-0.36, -0.24, -0.12, 0, 0.12, 0.24, 0.36].map((angle, index) => ({ angle, offset: (index - 3) * 4 })), inaccuracy: 0.06, pierce: 0, color: '#fed7aa' },
     heavy: { cooldown: 740, damage: 76, speed: 560, life: 2.05, radius: 10, shots: [{ angle: 0, offset: 0 }], inaccuracy: 0, pierce: 0, color: '#fdba74' },
-    destroyer: { cooldown: 1120, damage: 132, speed: 520, life: 2.45, radius: 16, shots: [{ angle: 0, offset: 0 }], inaccuracy: 0, pierce: 0, color: '#fb923c' },
+    destroyer: { cooldown: 1220, damage: 116, speed: 520, life: 2.45, radius: 16, shots: [{ angle: 0, offset: 0 }], inaccuracy: 0, pierce: 0, color: '#fb923c' },
     juggernaut: { cooldown: 680, damage: 66, speed: 535, life: 2.15, radius: 12, shots: [{ angle: 0, offset: 0 }], inaccuracy: 0.02, pierce: 0, color: '#f97316' },
   };
 
@@ -399,12 +423,12 @@ function shootIfNeeded(player) {
   const shots = spec.shots.map((shot) => ({ ...shot, damageScale: 1, radiusScale: 1 }));
   const burstLevel = player.tactical?.burst || 0;
   if (burstLevel >= 1) {
-    shots.push({ angle: -0.14, offset: -9, damageScale: 0.48, radiusScale: 0.78 });
-    shots.push({ angle: 0.14, offset: 9, damageScale: 0.48, radiusScale: 0.78 });
+    shots.push({ angle: -0.14, offset: -9, damageScale: 0.32, radiusScale: 0.66 });
+    shots.push({ angle: 0.14, offset: 9, damageScale: 0.32, radiusScale: 0.66 });
   }
   if (burstLevel >= 2) {
-    shots.push({ angle: -0.26, offset: -15, damageScale: 0.34, radiusScale: 0.72 });
-    shots.push({ angle: 0.26, offset: 15, damageScale: 0.34, radiusScale: 0.72 });
+    shots.push({ angle: -0.26, offset: -15, damageScale: 0.22, radiusScale: 0.58 });
+    shots.push({ angle: 0.26, offset: 15, damageScale: 0.22, radiusScale: 0.58 });
   }
 
   shots.forEach((shot) => {
@@ -426,8 +450,8 @@ function shootIfNeeded(player) {
       radius: Math.max(3, Math.round(spec.radius * (shot.radiusScale || 1))),
       pierce: spec.pierce,
       bounces: player.tactical?.ricochet || 0,
-      splashRadius: explosiveLevel > 0 ? 46 + explosiveLevel * 20 : 0,
-      splashDamageScale: explosiveLevel > 0 ? 0.28 + explosiveLevel * 0.11 : 0,
+      splashRadius: explosiveLevel > 0 ? 34 + explosiveLevel * 14 : 0,
+      splashDamageScale: explosiveLevel > 0 ? 0.16 + explosiveLevel * 0.06 : 0,
       color: spec.color,
     });
   });
@@ -435,10 +459,10 @@ function shootIfNeeded(player) {
 
 function applyDamage(target, bullet, owner, damage) {
   const armorLevel = target.tactical?.armor || 0;
-  const finalDamage = Math.max(1, Math.round(damage * (1 - armorLevel * 0.08)));
+  const finalDamage = Math.max(1, Math.round(damage * (1 - armorLevel * 0.055)));
   target.hp = Math.max(0, target.hp - finalDamage);
   target.lastDamageAt = Date.now();
-  if (owner) awardXp(owner, 14);
+  if (owner) awardXp(owner, 8);
 
   if (target.hp <= 0 && target.alive) {
     target.alive = false;
@@ -450,13 +474,13 @@ function applyDamage(target, bullet, owner, damage) {
       owner.killStreak = (owner.killStreak || 0) + 1;
       awardXp(owner, 135 + target.level * 8);
 
-      const killHeal = 24 + (owner.tactical?.killHeal || 0) * 18;
+      const killHeal = 16 + (owner.tactical?.killHeal || 0) * 10;
       owner.hp = clamp(owner.hp + killHeal, 0, owner.maxHp);
 
-      // Every 2 kills in a row: bonus heal + one extra upgrade point.
-      if (owner.killStreak > 0 && owner.killStreak % 2 === 0) {
+      // Every 3 kills in a row: smaller bonus heal + one extra upgrade point.
+      if (owner.killStreak > 0 && owner.killStreak % 3 === 0) {
         owner.upgradePoints += 1;
-        owner.hp = clamp(owner.hp + 38, 0, owner.maxHp);
+        owner.hp = clamp(owner.hp + 24, 0, owner.maxHp);
       }
     }
     return true;
@@ -490,7 +514,8 @@ function bounceBullet(bullet, prevX, prevY, hitWall) {
 
   if (bounced) {
     bullet.bounces -= 1;
-    bullet.life *= 0.86;
+    bullet.life *= 0.72;
+    bullet.damage = Math.max(1, Math.round(bullet.damage * 0.72));
     bullet.angle = Math.atan2(bullet.vy, bullet.vx);
   }
   return bounced;
@@ -510,6 +535,42 @@ function applySplashDamage(bullet, directHitId) {
   }
 }
 
+
+function damageObstacle(obstacle, bullet, owner) {
+  if (!obstacle || !obstacle.destructible || obstacle.destroyed) return false;
+
+  obstacle.hp = Math.max(0, (obstacle.hp || obstacle.maxHp || 1) - Math.max(1, bullet.damage || 1));
+  if (owner && owner.alive) {
+    // Small hit XP so players can grind, but far slower than killing players.
+    awardXp(owner, 3);
+  }
+
+  if (obstacle.hp <= 0) {
+    obstacle.destroyed = true;
+    obstacle.respawnAt = Date.now() + (obstacle.respawnMs || 14000);
+    const reward = obstacle.xpReward || 25;
+    if (owner && owner.alive) {
+      awardXp(owner, reward);
+      owner.obstacleBreaks = (owner.obstacleBreaks || 0) + 1;
+      owner.hp = clamp(owner.hp + 5, 0, owner.maxHp);
+    }
+    return true;
+  }
+  return false;
+}
+
+function updateObstacles() {
+  const now = Date.now();
+  obstacles.forEach((obstacle) => {
+    if (!obstacle.destructible || !obstacle.destroyed) return;
+    if (obstacle.respawnAt && now >= obstacle.respawnAt) {
+      obstacle.destroyed = false;
+      obstacle.respawnAt = 0;
+      obstacle.hp = obstacle.maxHp;
+    }
+  });
+}
+
 function updateBullets(dt) {
   for (const [id, bullet] of bullets.entries()) {
     bullet.life -= dt;
@@ -518,11 +579,23 @@ function updateBullets(dt) {
     bullet.x += bullet.vx * dt;
     bullet.y += bullet.vy * dt;
 
-    const hitWall = obstacles.find((rect) => circleRectCollision(bullet.x, bullet.y, bullet.radius || BULLET_RADIUS, rect));
+    const hitObstacle = obstacles.find((rect) => !rect.destroyed && circleRectCollision(bullet.x, bullet.y, bullet.radius || BULLET_RADIUS, rect));
     const outside = bullet.x < bullet.radius || bullet.y < bullet.radius || bullet.x > WORLD.width - bullet.radius || bullet.y > WORLD.height - bullet.radius;
 
-    if (outside || hitWall) {
-      if (bounceBullet(bullet, prevX, prevY, hitWall)) continue;
+    if (hitObstacle && hitObstacle.destructible) {
+      const owner = players.get(bullet.ownerId);
+      damageObstacle(hitObstacle, bullet, owner);
+      applySplashDamage(bullet, null);
+      if (bullet.pierce > 0) {
+        bullet.pierce -= 1;
+      } else {
+        bullets.delete(id);
+      }
+      continue;
+    }
+
+    if (outside || hitObstacle) {
+      if (bounceBullet(bullet, prevX, prevY, hitObstacle)) continue;
       applySplashDamage(bullet, null);
       bullets.delete(id);
       continue;
@@ -574,6 +647,7 @@ function gameLoop() {
     shootIfNeeded(player);
   }
   updateBullets(DT);
+  updateObstacles();
 }
 
 function sendSnapshot() {
@@ -582,6 +656,7 @@ function sendSnapshot() {
     players: serializePlayers(),
     bullets: serializeBullets(),
     leaderboard: leaderboard(),
+    obstacles: serializeObstacles(),
   });
 }
 
@@ -622,7 +697,7 @@ function chooseTacticalUpgrade(player, id) {
 }
 
 io.on('connection', (socket) => {
-  socket.emit('init', { id: socket.id, world: WORLD, obstacles });
+  socket.emit('init', { id: socket.id, world: WORLD, obstacles: serializeObstacles() });
 
   socket.on('join', ({ name } = {}) => {
     const player = spawnPlayer(socket, name);
