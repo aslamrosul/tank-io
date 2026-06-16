@@ -1,7 +1,7 @@
 {
-  "name": "iron-battalion-tactical-semi3d-arena",
-  "version": "3.0.0",
-  "description": "Semi-3D HD multiplayer tank arena with mobile controls, upgrades, tactical mods, ricochet bullets, and kill-chain rewards.",
+  "name": "iron-battalion-random-upgrade-arena",
+  "version": "3.4.0",
+  "description": "Semi-3D HD multiplayer tank arena with random upgrades, fixed one-click upgrade UI, and lag-reduced WebSocket snapshots.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -21,5 +21,9 @@
   "dependencies": {
     "express": "^4.19.2",
     "socket.io": "^4.7.5"
+  },
+  "optionalDependencies": {
+    "bufferutil": "^4.0.8",
+    "utf-8-validate": "^6.0.4"
   }
 }

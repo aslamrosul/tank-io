@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Iron Battalion — Tactical Semi 3D Arena</title>
+  <title>Iron Battalion — Random Upgrade Arena</title>
   <style>
     * { box-sizing: border-box; }
     html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #05070c; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #fff; }
@@ -32,6 +32,10 @@
     .leader h3 { margin: 0 0 10px; font-size: 12px; color: rgba(255, 255, 255, .72); letter-spacing: .14em; text-transform: uppercase; }
     .leader ol { margin: 0; padding-left: 18px; font-size: 13px; color: rgba(255, 255, 255, .82); line-height: 1.75; }
     .leader span { float: right; color: #9ee8ff; font-weight: 800; }
+    .leader li { padding: 3px 7px; border-radius: 10px; margin: 2px 0; }
+    .leader li.topTarget { list-style-position: inside; border: 1px solid rgba(239, 68, 68, .24); background: linear-gradient(90deg, rgba(239, 68, 68, .16), rgba(251, 191, 36, .07)); box-shadow: inset 0 1px 0 rgba(255,255,255,.06); }
+    .leader li.hunterMark { border-color: rgba(251, 191, 36, .26); background: linear-gradient(90deg, rgba(251, 191, 36, .13), rgba(0, 209, 255, .05)); }
+    .leader b { color: #ffd166; font-size: 11px; margin-right: 5px; }
     .controls {
       position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); pointer-events: none;
       padding: 11px 14px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, .12);
@@ -65,7 +69,7 @@
       box-shadow: 0 18px 50px rgba(0, 102, 255, .34);
     }
     .upgradeToggle {
-      position: fixed; right: 18px; bottom: 158px; z-index: 12; pointer-events: auto; cursor: pointer;
+      position: fixed; right: 18px; bottom: 158px; z-index: 4000; pointer-events: auto; cursor: pointer;
       padding: 12px 14px; border-radius: 16px; border: 1px solid rgba(0, 209, 255, .34);
       background: linear-gradient(135deg, rgba(0, 209, 255, .23), rgba(124, 58, 237, .25));
       box-shadow: 0 18px 50px rgba(0, 102, 255, .25), inset 0 1px 0 rgba(255,255,255,.12);
@@ -74,13 +78,16 @@
     }
     .upgradeToggle span { display: inline-grid; place-items: center; min-width: 24px; height: 24px; margin-left: 8px; border-radius: 999px; background: #00d1ff; color: #00111a; }
     .upgradePanel {
-      position: fixed; top: 90px; right: 18px; bottom: 18px; z-index: 13; width: min(430px, calc(100vw - 24px)); pointer-events: auto;
-      padding: 16px; border: 1px solid rgba(255,255,255,.14); border-radius: 24px;
-      background: linear-gradient(180deg, rgba(15, 23, 42, .92), rgba(2, 6, 23, .88));
-      box-shadow: 0 26px 90px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.09);
-      backdrop-filter: blur(20px); overflow: auto; transform: translateX(calc(100% + 34px)); transition: transform .25s ease;
+      position: fixed; top: 82px; right: 18px; bottom: 18px; z-index: 5000; width: min(560px, calc(100vw - 24px)); pointer-events: auto;
+      padding: 18px; border: 1px solid rgba(255,255,255,.16); border-radius: 26px;
+      background: linear-gradient(180deg, rgba(15, 23, 42, .96), rgba(2, 6, 23, .92));
+      box-shadow: 0 30px 110px rgba(0,0,0,.62), inset 0 1px 0 rgba(255,255,255,.10);
+      backdrop-filter: blur(22px); overflow-y: auto; overflow-x: hidden; transform: translateX(calc(100% + 34px)); opacity: .2; visibility: hidden; transition: transform .22s ease, opacity .18s ease, visibility .18s ease;
+      -webkit-overflow-scrolling: touch; overscroll-behavior: contain; touch-action: pan-y;
     }
-    .upgradePanel.open { transform: translateX(0); }
+    .upgradePanel.open { transform: translateX(0); opacity: 1; visibility: visible; }
+    body.upgrade-open canvas { pointer-events: none; }
+    body.upgrade-open .touchControls { pointer-events: none; }
     .upgradeHead { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
     .upgradeHead h2 { margin: 0; font-size: 18px; letter-spacing: -.03em; }
     .upgradeHead p { margin: 5px 0 0; color: rgba(255,255,255,.62); font-size: 12px; line-height: 1.45; }
@@ -92,9 +99,22 @@
     .upgradeCard {
       width: 100%; margin: 0; padding: 12px; text-align: left; border-radius: 16px; border: 1px solid rgba(255,255,255,.11);
       background: linear-gradient(135deg, rgba(255,255,255,.08), rgba(255,255,255,.035)); color: #fff; box-shadow: none;
-      letter-spacing: 0; text-transform: none;
+      letter-spacing: 0; text-transform: none; touch-action: manipulation; user-select: none; min-height: 104px;
+      -webkit-tap-highlight-color: transparent; cursor: pointer; position: relative;
     }
+    .upgradeChoices { grid-template-columns: 1fr; }
+    .upgradeCard.evolution { border-color: rgba(255, 209, 102, .40); background: linear-gradient(135deg, rgba(255, 209, 102, .20), rgba(251, 86, 7, .10)); }
+    .upgradeCard.core { border-color: rgba(0, 209, 255, .34); background: linear-gradient(135deg, rgba(0, 209, 255, .16), rgba(124, 58, 237, .11)); }
+    .upgradeCard.tactical { border-color: rgba(168, 85, 247, .32); background: linear-gradient(135deg, rgba(168, 85, 247, .16), rgba(0, 209, 255, .07)); }
+    .upgradeActions { display: flex; gap: 10px; margin: 8px 0 12px; }
+    .upgradeActions button { width: auto; flex: 1; margin: 0; padding: 11px 12px; font-size: 11px; border-radius: 14px; box-shadow: none; background: rgba(255,255,255,.10); border: 1px solid rgba(255,255,255,.12); }
+    .buildStats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .buildStat { padding: 10px; border-radius: 14px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.10); font-size: 12px; color: rgba(255,255,255,.76); }
+    .buildStat b { color: #fff; }
     .upgradeCard:hover { border-color: rgba(0, 209, 255, .55); background: linear-gradient(135deg, rgba(0, 209, 255, .18), rgba(124, 58, 237, .13)); }
+    .upgradeCard:active { transform: translateY(1px) scale(.99); }
+    .upgradeCard.pending { outline: 2px solid rgba(0, 209, 255, .55); opacity: .78; }
+    .upgradeCard * { pointer-events: none; }
     .upgradeCard.locked { opacity: .58; cursor: not-allowed; filter: saturate(.55); }
     .upgradeCard.locked:hover { border-color: rgba(255,255,255,.11); background: linear-gradient(135deg, rgba(255,255,255,.08), rgba(255,255,255,.035)); }
     .upgradeCard strong { display: block; font-size: 14px; margin-bottom: 4px; }
@@ -148,7 +168,7 @@
       text-shadow: 0 2px 12px rgba(0,0,0,.65);
     }
     .mobileUpgradeBtn {
-      position: fixed; left: 50%; bottom: 34px; transform: translateX(-50%); z-index: 12; display: none; pointer-events: auto;
+      position: fixed; left: 50%; bottom: 34px; transform: translateX(-50%); z-index: 70; display: none; pointer-events: auto;
       width: auto; margin: 0; padding: 13px 15px; border-radius: 16px; border: 1px solid rgba(124, 58, 237, .45);
       background: linear-gradient(135deg, rgba(0, 209, 255, .22), rgba(124, 58, 237, .35));
       box-shadow: 0 18px 50px rgba(0,0,0,.38); color: #fff; font-size: 11px; font-weight: 950; letter-spacing: .12em; text-transform: uppercase;
@@ -161,11 +181,16 @@
     }
     .hidden { display: none; }
     @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+    @media (max-width: 1100px) {
+      .upgradePanel { left: 50%; right: auto; top: 80px; bottom: 28px; width: min(620px, calc(100vw - 24px)); transform: translate(-50%, 22px) scale(.96); opacity: 0; }
+      .upgradePanel.open { transform: translate(-50%, 0) scale(1); opacity: 1; }
+    }
     @media (max-width: 760px) {
       .topbar { align-items: stretch; flex-direction: column; right: auto; }
       .leader { display: none; }
       .controls { width: calc(100vw - 24px); text-align: center; white-space: normal; border-radius: 18px; }
-      .upgradePanel { top: 76px; right: 12px; bottom: 184px; }
+      .upgradePanel { top: 72px; bottom: 158px; width: calc(100vw - 20px); padding: 14px; }
+      .buildStats { grid-template-columns: 1fr; }
       .upgradeToggle { display: none; }
       .panel { min-width: 215px; padding: 11px 13px; }
       .topbar { top: 10px; left: 10px; right: 10px; }
@@ -179,7 +204,7 @@
   <div id="menu" class="menu">
     <div class="card">
       <h1 class="title">IRON <strong>BATTALION</strong></h1>
-      <p class="desc">Multiplayer tank arena semi-3D dengan XP, weapon tree, tactical mods, peluru biru/merah, dan obstacle farming: tembak crate/supply core untuk naik level tanpa harus kill musuh.</p>
+      <p class="desc">Multiplayer tank arena semi-3D dengan random upgrade choices, tank evolution, bounty Top 1–3, XP farming obstacle, dan controller HP.</p>
       <input id="nameInput" maxlength="16" placeholder="Nama pemain kamu" autocomplete="off" />
       <button id="playBtn">Masuk Arena</button>
     </div>
@@ -209,12 +234,14 @@
       <button id="closeUpgrade" class="closeBtn">X</button>
     </div>
     <div id="weaponPath" class="pillRow"></div>
-    <div class="sectionTitle">Weapon Evolution</div>
-    <div id="weaponOptions" class="upgradeGrid"></div>
-    <div class="sectionTitle">Tactical Mods</div>
-    <div id="tacticalOptions" class="upgradeGrid"></div>
-    <div class="sectionTitle">Stat Upgrade</div>
-    <div id="statOptions" class="upgradeGrid"></div>
+    <div class="upgradeActions">
+      <button id="rerollBtn" type="button">Acak pilihan</button>
+      <button id="quickCloseBtn" type="button">Lanjut main</button>
+    </div>
+    <div class="sectionTitle">Random Upgrade Choices</div>
+    <div id="choiceOptions" class="upgradeGrid upgradeChoices"></div>
+    <div class="sectionTitle">Build Saat Ini</div>
+    <div id="buildStats" class="buildStats"></div>
   </div>
 
   <div id="touchControls" class="touchControls">
@@ -224,11 +251,18 @@
   </div>
 
   <div id="toast" class="toast"></div>
-  <div class="controls">WASD / Arrow = gerak • Klik/Space = tembak • U = upgrade • Biru = kamu • Merah = musuh • Crate/Core bisa ditembak untuk XP</div>
+  <div class="controls">WASD/Arrow = gerak • Klik/Space = tembak • U = upgrade • Tiap level muncul 3 pilihan random • Biru = kamu • Merah = musuh</div>
 
   <script src="/socket.io/socket.io.js"></script>
   <script>
-    const socket = io();
+    const socket = io({
+      transports: ['websocket'],
+      upgrade: false,
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 600,
+      reconnectionDelayMax: 2500,
+    });
     const canvas = document.getElementById('game');
     const ctx = canvas.getContext('2d');
     const menu = document.getElementById('menu');
@@ -244,9 +278,10 @@
     const closeUpgrade = document.getElementById('closeUpgrade');
     const upgradeSummary = document.getElementById('upgradeSummary');
     const weaponPathEl = document.getElementById('weaponPath');
-    const weaponOptionsEl = document.getElementById('weaponOptions');
-    const tacticalOptionsEl = document.getElementById('tacticalOptions');
-    const statOptionsEl = document.getElementById('statOptions');
+    const choiceOptionsEl = document.getElementById('choiceOptions');
+    const buildStatsEl = document.getElementById('buildStats');
+    const rerollBtn = document.getElementById('rerollBtn');
+    const quickCloseBtn = document.getElementById('quickCloseBtn');
     const touchControls = document.getElementById('touchControls');
     const movePad = document.getElementById('movePad');
     const moveKnob = document.getElementById('moveKnob');
@@ -256,7 +291,7 @@
     const toastEl = document.getElementById('toast');
 
     let dpr = 1;
-    let world = { width: 2400, height: 1550 };
+    let world = { width: 3800, height: 2600 };
     let obstacles = [];
     let players = {};
     let bullets = [];
@@ -270,6 +305,8 @@
     const lastBullets = new Map();
     let shootingMouse = false;
     let lastUpgradePoints = 0;
+    let pendingUpgradeKey = '';
+    let pendingUpgradeTimer = 0;
     const mobileInput = {
       moveX: 0,
       moveY: 0,
@@ -435,6 +472,20 @@
     bindMovePad();
     bindAimPad();
 
+    function setUpgradeOpen(open) {
+      upgradePanel.classList.toggle('open', Boolean(open));
+      document.body.classList.toggle('upgrade-open', Boolean(open));
+      if (open) shootingMouse = false;
+    }
+
+    function toggleUpgradePanel() {
+      setUpgradeOpen(!upgradePanel.classList.contains('open'));
+    }
+
+    function isUiTarget(target) {
+      return Boolean(target && target.closest && target.closest('#upgradePanel, #upgradeToggle, #mobileUpgradeBtn, #menu'));
+    }
+
     window.addEventListener('mousemove', (e) => {
       mouse.x = e.clientX;
       mouse.y = e.clientY;
@@ -443,14 +494,14 @@
       mouse.worldY = w.y;
     });
 
-    window.addEventListener('mousedown', () => { shootingMouse = true; });
+    window.addEventListener('mousedown', (e) => { if (isUiTarget(e.target)) return; shootingMouse = true; });
     window.addEventListener('mouseup', () => { shootingMouse = false; });
     window.addEventListener('contextmenu', (e) => e.preventDefault());
 
     window.addEventListener('keydown', (e) => {
       const key = e.key.toLowerCase();
       if (key === 'u' && joined) {
-        upgradePanel.classList.toggle('open');
+        toggleUpgradePanel();
         e.preventDefault();
         return;
       }
@@ -461,12 +512,36 @@
 
     playBtn.addEventListener('click', joinGame);
     nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') joinGame(); });
-    upgradeToggle.addEventListener('click', () => upgradePanel.classList.toggle('open'));
-    closeUpgrade.addEventListener('click', () => upgradePanel.classList.remove('open'));
-    mobileUpgradeBtn.addEventListener('click', () => upgradePanel.classList.toggle('open'));
+    upgradeToggle.addEventListener('click', (e) => { e.stopPropagation(); toggleUpgradePanel(); });
+    closeUpgrade.addEventListener('click', (e) => { e.stopPropagation(); setUpgradeOpen(false); });
+    quickCloseBtn.addEventListener('click', (e) => { e.stopPropagation(); setUpgradeOpen(false); });
+    mobileUpgradeBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleUpgradePanel(); });
+    rerollBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!joined) return showToast('Masuk arena dulu sebelum acak upgrade.');
+      socket.emit('rerollUpgrades');
+      showToast('Pilihan upgrade diacak ulang.');
+    });
 
-    upgradePanel.addEventListener('click', (e) => {
+    upgradePanel.addEventListener('pointerdown', (e) => {
+      e.stopPropagation();
+      shootingMouse = false;
+
+      // Upgrade dieksekusi di pointerdown, bukan click/pointerup.
+      // Ini menghilangkan masalah "harus spam klik" di laptop touchpad dan HP.
       const button = e.target.closest('[data-upgrade-type]');
+      if (!button) return;
+      handleUpgradeCardAction(e, button);
+    }, { passive: false });
+
+    function clearPendingUpgrade() {
+      pendingUpgradeKey = '';
+      clearTimeout(pendingUpgradeTimer);
+      document.querySelectorAll('.upgradeCard.pending').forEach((el) => el.classList.remove('pending'));
+    }
+
+    function handleUpgradeCardAction(e, button) {
       if (!button) return;
       e.preventDefault();
       e.stopPropagation();
@@ -477,19 +552,40 @@
         return;
       }
       if (me.upgradePoints <= 0 || button.dataset.locked === 'true') {
-        showToast('Upgrade point habis. Dapatkan XP/kill dulu untuk point baru.');
+        showToast('Upgrade point habis. Farming crate/core atau kill musuh dulu.');
         return;
       }
 
-      socket.emit('chooseUpgrade', { type: button.dataset.upgradeType, id: button.dataset.upgradeId });
-    });
+      const type = button.dataset.upgradeType;
+      const id = button.dataset.upgradeId;
+      const key = `${type}:${id}`;
+      if (pendingUpgradeKey === key) return;
 
-    socket.on('upgradeResult', ({ ok, type, id, upgradePoints } = {}) => {
+      pendingUpgradeKey = key;
+      button.classList.add('pending');
+      socket.emit('chooseUpgrade', { type, id });
+
+      // Kalau paket balik dari server telat/hilang, jangan sampai kartu terkunci selamanya.
+      clearTimeout(pendingUpgradeTimer);
+      pendingUpgradeTimer = setTimeout(clearPendingUpgrade, 1200);
+    }
+
+    socket.on('upgradeResult', ({ ok, type, id, upgradePoints, choices } = {}) => {
+      clearPendingUpgrade();
+
+      // Update UI lokal langsung, tidak menunggu snapshot berikutnya.
+      if (players[myId]) {
+        if (Number.isFinite(upgradePoints)) players[myId].upgradePoints = upgradePoints;
+        if (Array.isArray(choices)) players[myId].upgradeChoices = choices;
+      }
+      renderUpgradePanel();
+
       if (ok) {
-        showToast(`Upgrade berhasil: ${titleCase(id || type)} • Sisa point ${upgradePoints}`);
+        if (type === 'reroll') showToast('Pilihan random sudah diganti.');
+        else showToast(`Upgrade berhasil: ${titleCase(id || type)} • Sisa point ${upgradePoints}`);
         return;
       }
-      showToast('Upgrade gagal. Syarat belum cukup atau point sudah habis.');
+      showToast('Upgrade gagal. Pilihan sudah berubah, syarat belum cukup, atau point habis.');
     });
 
     function joinGame() {
@@ -526,7 +622,7 @@
         const before = previousPlayers[p.id];
         if (before && before.alive && !p.alive) spawnExplosion(p.x, p.y, p.color);
         if (p.id === myId && before && (p.killStreak || 0) > (before.killStreak || 0) && (p.killStreak || 0) % 2 === 0) {
-          upgradePanel.classList.add('open');
+          setUpgradeOpen(true);
         }
       });
       lastBullets.clear();
@@ -554,8 +650,8 @@
 
     setInterval(() => {
       if (!joined) return;
-      socket.emit('input', buildInput());
-    }, 1000 / 45);
+      socket.volatile.emit('input', buildInput());
+    }, 1000 / 30);
 
     function renderHud() {
       const me = players[myId];
@@ -574,7 +670,13 @@
       xpBar.style.transform = `scaleX(${xpPercent})`;
 
       leaderboardEl.innerHTML = leaderboard.length
-        ? leaderboard.map((item) => `<li>${escapeHtml(item.name)} <small>Lv ${item.level} • KS ${item.killStreak || 0}</small> <span>${item.score}</span></li>`).join('')
+        ? leaderboard.map((item, index) => {
+            const rank = index + 1;
+            const top = rank <= 3;
+            const mark = rank === 1 ? '👑 TARGET' : rank === 2 ? '🔥 TOP 2' : rank === 3 ? '⚠ TOP 3' : '';
+            const cls = rank === 1 ? 'topTarget' : top ? 'hunterMark' : '';
+            return `<li class="${cls}">${top ? `<b>${mark}</b>` : ''}${escapeHtml(item.name)} <small>Lv ${item.level} • KS ${item.killStreak || 0}</small> <span>${item.score}</span></li>`;
+          }).join('')
         : '<li>Belum ada skor <span>0</span></li>';
     }
 
@@ -585,41 +687,41 @@
       upgradeCount.textContent = me.upgradePoints;
       upgradeToggle.classList.toggle('hidden', me.upgradePoints <= 0);
 
-      if (me.upgradePoints > lastUpgradePoints) upgradePanel.classList.add('open');
+      if (me.upgradePoints > lastUpgradePoints) setUpgradeOpen(true);
       lastUpgradePoints = me.upgradePoints;
 
-      upgradeSummary.textContent = `Level ${me.level} • ${me.weaponName} • Kill chain ${me.killStreak || 0} • Farm ${me.obstacleBreaks || 0} • Point: ${me.upgradePoints}`;
-      const tacticalPills = Object.entries(me.tactical || {}).filter(([, level]) => level > 0).map(([id, level]) => `<div class="pill">${escapeHtml(titleCase(id))} Lv ${level}</div>`);
-      weaponPathEl.innerHTML = [ ...(me.weaponPath || []).map((id) => `<div class="pill">${escapeHtml(titleCase(id))}</div>`), ...tacticalPills ].join('');
+      const nextTank = me.nextEvolutionLevel ? ` • Tank evolution Lv ${me.nextEvolutionLevel}` : ' • Final tank branch';
+      upgradeSummary.textContent = `Level ${me.level} • ${me.weaponName} • Point: ${me.upgradePoints}${nextTank}`;
+
+      const tacticalPills = Object.entries(me.tactical || {})
+        .filter(([, level]) => level > 0)
+        .map(([id, level]) => `<div class="pill">${escapeHtml(titleCase(id))} Lv ${level}</div>`);
+      weaponPathEl.innerHTML = [
+        ...(me.weaponPath || []).map((id) => `<div class="pill">${escapeHtml(titleCase(id))}</div>`),
+        ...tacticalPills,
+      ].join('');
 
       const canBuy = me.upgradePoints > 0;
-      weaponOptionsEl.innerHTML = me.weaponOptions && me.weaponOptions.length
-        ? me.weaponOptions.map((item) => `
-          <button class="upgradeCard ${canBuy ? '' : 'locked'}" data-upgrade-type="weapon" data-upgrade-id="${escapeHtml(item.id)}" data-locked="${canBuy ? 'false' : 'true'}">
-            <strong>${escapeHtml(item.name)}</strong>
-            <small>${escapeHtml(item.desc)}</small>
-            <div class="upgradeMeta"><em>Tier ${item.tier}</em><em>Min Lv ${item.minLevel}</em><em>Cost 1</em></div>
-          </button>`).join('')
-        : '<div class="emptyUpgrades">Belum ada cabang senjata terbuka. Naik ke Level 2 untuk tier pertama, Level 5 untuk evolusi berikutnya.</div>';
+      const choices = Array.isArray(me.upgradeChoices) ? me.upgradeChoices : [];
+      choiceOptionsEl.innerHTML = choices.length
+        ? choices.map((item) => {
+            const locked = !canBuy;
+            const dots = item.max ? `<div class="statDots">${Array.from({ length: item.max }, (_, i) => `<i class="${i < (item.level || 0) ? 'active' : ''}"></i>`).join('')}</div>` : '';
+            const meta = item.type === 'weapon'
+              ? `<em>Tier ${item.tier || 1}</em><em>Min Lv ${item.minLevel || 1}</em><em>Tank</em>`
+              : `<em>Lv ${item.level || 0}/${item.max || 1}</em><em>${escapeHtml(item.badge || item.type)}</em><em>Cost 1</em>`;
+            return `
+              <button class="upgradeCard ${escapeHtml(item.rarity || item.type)} ${locked ? 'locked' : ''}" data-upgrade-type="${escapeHtml(item.type)}" data-upgrade-id="${escapeHtml(item.id)}" data-locked="${locked ? 'true' : 'false'}">
+                <strong>${escapeHtml(item.name)}</strong>
+                <small>${escapeHtml(item.desc)}</small>
+                <div class="upgradeMeta">${meta}</div>
+                ${dots}
+              </button>`;
+          }).join('')
+        : '<div class="emptyUpgrades">Belum ada pilihan. Farming crate/core atau kill musuh sampai naik level, lalu 3 pilihan random akan muncul otomatis.</div>';
 
-      tacticalOptionsEl.innerHTML = me.tacticalOptions && me.tacticalOptions.length
-        ? me.tacticalOptions.map((item) => `
-          <button class="upgradeCard ${canBuy ? '' : 'locked'}" data-upgrade-type="tactical" data-upgrade-id="${escapeHtml(item.id)}" data-locked="${canBuy ? 'false' : 'true'}">
-            <strong>${escapeHtml(item.name)} Lv ${item.level}/${item.max}</strong>
-            <small>${escapeHtml(item.desc)}</small>
-            <div class="upgradeMeta"><em>Tactical</em><em>Cost 1</em><em>${item.id === 'ricochet' ? 'Mantul' : item.id === 'burst' ? 'Extra Shot' : item.id === 'explosive' ? 'Splash' : item.id === 'killHeal' ? 'Heal Kill' : 'Defense'}</em></div>
-            <div class="statDots">${Array.from({ length: item.max }, (_, i) => `<i class="${i < item.level ? 'active' : ''}"></i>`).join('')}</div>
-          </button>`).join('')
-        : '<div class="emptyUpgrades">Semua tactical mod sudah maksimal.</div>';
-
-      statOptionsEl.innerHTML = me.statOptions && me.statOptions.length
-        ? me.statOptions.map((item) => `
-          <button class="upgradeCard ${canBuy ? '' : 'locked'}" data-upgrade-type="stat" data-upgrade-id="${escapeHtml(item.id)}" data-locked="${canBuy ? 'false' : 'true'}">
-            <strong>${escapeHtml(item.name)} Lv ${item.level}/${item.max}</strong>
-            <small>${escapeHtml(item.desc)}</small>
-            <div class="statDots">${Array.from({ length: item.max }, (_, i) => `<i class="${i < item.level ? 'active' : ''}"></i>`).join('')}</div>
-          </button>`).join('')
-        : '<div class="emptyUpgrades">Semua stat sudah maksimal.</div>';
+      const statEntries = Object.entries(me.stats || {});
+      buildStatsEl.innerHTML = statEntries.map(([id, level]) => `<div class="buildStat"><b>${escapeHtml(titleCase(id))}</b><br>Lv ${level}</div>`).join('');
     }
 
     function escapeHtml(value) {
@@ -643,7 +745,7 @@
       const me = players[myId];
       const targetX = me ? me.x : world.width / 2;
       const targetY = me ? me.y : world.height / 2;
-      const targetZoom = window.innerWidth < 760 ? 0.78 : window.innerWidth > 1400 ? 0.96 : 0.88;
+      const targetZoom = window.innerWidth < 760 ? 0.68 : window.innerWidth > 1400 ? 0.86 : 0.78;
       camera.zoom += (targetZoom - camera.zoom) * 0.045;
       camera.x += (targetX - camera.x) * 0.075;
       camera.y += (targetY - camera.y) * 0.075;
@@ -697,19 +799,23 @@
 
     function drawArenaRoads() {
       ctx.save();
+      const roadH = Math.max(210, world.height * 0.11);
+      const roadW = Math.max(250, world.width * 0.075);
+      const midY = world.height * 0.48;
+      const midX = world.width * 0.51;
       ctx.globalAlpha = 0.82;
       ctx.fillStyle = 'rgba(3, 7, 18, .48)';
-      roundRect(105, 600, world.width - 210, 210, 34);
+      roundRect(135, midY - roadH / 2, world.width - 270, roadH, 38);
       ctx.fill();
-      roundRect(1080, 90, 250, world.height - 180, 34);
+      roundRect(midX - roadW / 2, 110, roadW, world.height - 220, 38);
       ctx.fill();
 
       ctx.globalAlpha = 0.25;
       ctx.strokeStyle = '#9ee8ff';
-      ctx.setLineDash([26, 42]);
+      ctx.setLineDash([28, 46]);
       ctx.lineWidth = 5;
-      ctx.beginPath(); ctx.moveTo(135, 705); ctx.lineTo(world.width - 135, 705); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(1205, 130); ctx.lineTo(1205, world.height - 130); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(180, midY); ctx.lineTo(world.width - 180, midY); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(midX, 170); ctx.lineTo(midX, world.height - 170); ctx.stroke();
       ctx.setLineDash([]);
       ctx.restore();
     }
@@ -736,7 +842,7 @@
 
     function drawWorldProps() {
       ctx.save();
-      for (let i = 0; i < 80; i++) {
+      for (let i = 0; i < 145; i++) {
         const x = (i * 421 + 97) % world.width;
         const y = (i * 277 + 53) % world.height;
         if (i % 5 === 0) {
@@ -892,6 +998,7 @@
 
       drawWeapon(t);
       drawEngineGlow(t);
+      drawBountyAura(t);
 
       if (t.id === myId && t.alive) {
         ctx.save();
@@ -932,6 +1039,25 @@
       glow.addColorStop(1, 'rgba(0,209,255,0)');
       ctx.fillStyle = glow;
       ctx.beginPath(); ctx.arc(-42, 0, 30, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+
+    function drawBountyAura(t) {
+      if (!t.alive || !t.bountyRank || t.bountyRank > 3) return;
+      const rank = t.bountyRank;
+      const color = rank === 1 ? '#ef4444' : rank === 2 ? '#f97316' : '#facc15';
+      const pulse = Math.sin(performance.now() / 150) * 4;
+      ctx.save();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = rank === 1 ? 3 : 2;
+      ctx.globalAlpha = rank === 1 ? .72 : .54;
+      ctx.shadowColor = color;
+      ctx.shadowBlur = rank === 1 ? 22 : 14;
+      ctx.setLineDash(rank === 1 ? [10, 7] : [7, 9]);
+      ctx.beginPath();
+      ctx.arc(0, 1, 58 + pulse + (4 - rank) * 4, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
       ctx.restore();
     }
 
@@ -1013,7 +1139,14 @@
       ctx.textAlign = 'center';
       ctx.shadowColor = 'rgba(0,0,0,.75)';
       ctx.shadowBlur = 8;
+      if (t.bountyRank && t.bountyRank <= 3) {
+        const label = t.bountyRank === 1 ? '👑 TARGET #1' : t.bountyRank === 2 ? '🔥 TARGET #2' : '⚠ TARGET #3';
+        ctx.fillStyle = t.bountyRank === 1 ? '#fecaca' : '#fde68a';
+        ctx.font = '11px Inter, system-ui, sans-serif';
+        ctx.fillText(label, t.x, t.y - 78);
+      }
       ctx.fillStyle = 'rgba(255,255,255,.92)';
+      ctx.font = '12px Inter, system-ui, sans-serif';
       ctx.fillText(`${t.name} Lv${t.level}`, t.x, t.y - 62);
       ctx.fillStyle = 'rgba(158,232,255,.86)';
       ctx.font = '10px Inter, system-ui, sans-serif';
@@ -1174,9 +1307,16 @@
         ctx.fillRect(x + o.x * sx, y + o.y * sy, o.w * sx, o.h * sy);
       });
       Object.values(players).forEach((p) => {
+        const px = x + p.x * sx;
+        const py = y + p.y * sy;
+        if (p.bountyRank && p.bountyRank <= 3) {
+          ctx.strokeStyle = p.bountyRank === 1 ? '#ef4444' : p.bountyRank === 2 ? '#f97316' : '#facc15';
+          ctx.lineWidth = p.bountyRank === 1 ? 2 : 1.5;
+          ctx.beginPath(); ctx.arc(px, py, 6, 0, Math.PI * 2); ctx.stroke();
+        }
         ctx.fillStyle = p.id === myId ? '#00d1ff' : p.color;
         ctx.beginPath();
-        ctx.arc(x + p.x * sx, y + p.y * sy, p.id === myId ? 4 : 3, 0, Math.PI * 2);
+        ctx.arc(px, py, p.id === myId ? 4 : 3, 0, Math.PI * 2);
         ctx.fill();
       });
       ctx.restore();

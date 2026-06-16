@@ -6,37 +6,65 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: { origin: '*' },
+  // Untuk game realtime, kompresi per packet sering bikin CPU kerja ekstra.
+  // Snapshot game juga aman kalau ada 1-2 frame yang ke-skip.
+  perMessageDeflate: false,
+  pingInterval: 12000,
+  pingTimeout: 18000,
 });
 
 app.use(express.static('public'));
 
 const PORT = process.env.PORT || 3000;
-const WORLD = { width: 2400, height: 1550 };
+const BUILD_VERSION = '3.4.0-lag-upgrade-fix';
+const WORLD = { width: 3800, height: 2600 };
 const TICK_RATE = 60;
-const SNAPSHOT_RATE = 30;
+const SNAPSHOT_RATE = 22; // diturunkan dari 30 agar bandwidth & jitter Render lebih ringan
 const DT = 1 / TICK_RATE;
 const TANK_RADIUS = 28;
 const BULLET_RADIUS = 5;
 const MAX_LEVEL = 30;
 
 let obstacles = [
-  { id: 'wall_1', x: 260, y: 240, w: 260, h: 80, type: 'wall', destructible: false, hp: 0, maxHp: 0, xpReward: 0 },
-  { id: 'wall_2', x: 760, y: 180, w: 120, h: 360, type: 'wall', destructible: false, hp: 0, maxHp: 0, xpReward: 0 },
-  { id: 'wall_3', x: 1180, y: 260, w: 420, h: 80, type: 'wall', destructible: false, hp: 0, maxHp: 0, xpReward: 0 },
-  { id: 'wall_4', x: 1760, y: 190, w: 170, h: 240, type: 'wall', destructible: false, hp: 0, maxHp: 0, xpReward: 0 },
-  { id: 'wall_5', x: 2140, y: 320, w: 120, h: 320, type: 'wall', destructible: false, hp: 0, maxHp: 0, xpReward: 0 },
-  { id: 'wall_6', x: 240, y: 700, w: 360, h: 90, type: 'wall', destructible: false, hp: 0, maxHp: 0, xpReward: 0 },
-  { id: 'crate_1', x: 820, y: 780, w: 260, h: 170, type: 'crate', destructible: true, hp: 145, maxHp: 145, xpReward: 42, respawnMs: 15000, destroyed: false, respawnAt: 0 },
-  { id: 'wall_7', x: 1320, y: 720, w: 130, h: 380, type: 'wall', destructible: false, hp: 0, maxHp: 0, xpReward: 0 },
-  { id: 'wall_8', x: 1640, y: 800, w: 340, h: 90, type: 'wall', destructible: false, hp: 0, maxHp: 0, xpReward: 0 },
-  { id: 'crate_2', x: 2040, y: 940, w: 190, h: 120, type: 'crate', destructible: true, hp: 120, maxHp: 120, xpReward: 36, respawnMs: 14000, destroyed: false, respawnAt: 0 },
-  { id: 'wall_9', x: 520, y: 1230, w: 260, h: 90, type: 'wall', destructible: false, hp: 0, maxHp: 0, xpReward: 0 },
-  { id: 'wall_10', x: 1040, y: 1260, w: 360, h: 90, type: 'wall', destructible: false, hp: 0, maxHp: 0, xpReward: 0 },
-  { id: 'crate_3', x: 1720, y: 1220, w: 230, h: 120, type: 'crate', destructible: true, hp: 130, maxHp: 130, xpReward: 38, respawnMs: 14500, destroyed: false, respawnAt: 0 },
-  { id: 'core_1', x: 620, y: 430, w: 72, h: 72, type: 'core', destructible: true, hp: 75, maxHp: 75, xpReward: 30, respawnMs: 12000, destroyed: false, respawnAt: 0 },
-  { id: 'core_2', x: 1515, y: 510, w: 76, h: 76, type: 'core', destructible: true, hp: 80, maxHp: 80, xpReward: 32, respawnMs: 12000, destroyed: false, respawnAt: 0 },
-  { id: 'core_3', x: 310, y: 1020, w: 74, h: 74, type: 'core', destructible: true, hp: 75, maxHp: 75, xpReward: 30, respawnMs: 12000, destroyed: false, respawnAt: 0 },
-  { id: 'core_4', x: 2090, y: 1250, w: 78, h: 78, type: 'core', destructible: true, hp: 82, maxHp: 82, xpReward: 34, respawnMs: 13000, destroyed: false, respawnAt: 0 },
+  // Solid walls: cannot be destroyed. These create lanes, cover, and ambush routes.
+  { id: 'wall_1', x: 260, y: 240, w: 320, h: 80, type: 'wall', destructible: false, hp: 0, maxHp: 0, xpReward: 0 },
+  { id: 'wall_2', x: 860, y: 180, w: 130, h: 420, type: 'wall', destructible: false, hp: 0, maxHp: 0, xpReward: 0 },
+  { id: 'wall_3', x: 1350, y: 280, w: 500, h: 85, type: 'wall', destructible: false, hp: 0, maxHp: 0, xpReward: 0 },
+  { id: 'wall_4', x: 2250, y: 180, w: 200, h: 300, type: 'wall', destructible: false, hp: 0, maxHp: 0, xpReward: 0 },
+  { id: 'wall_5', x: 3260, y: 330, w: 150, h: 420, type: 'wall', destructible: false, hp: 0, maxHp: 0, xpReward: 0 },
+  { id: 'wall_6', x: 250, y: 760, w: 480, h: 90, type: 'wall', destructible: false, hp: 0, maxHp: 0, xpReward: 0 },
+  { id: 'wall_7', x: 1510, y: 800, w: 140, h: 460, type: 'wall', destructible: false, hp: 0, maxHp: 0, xpReward: 0 },
+  { id: 'wall_8', x: 2050, y: 900, w: 500, h: 95, type: 'wall', destructible: false, hp: 0, maxHp: 0, xpReward: 0 },
+  { id: 'wall_9', x: 540, y: 1460, w: 380, h: 95, type: 'wall', destructible: false, hp: 0, maxHp: 0, xpReward: 0 },
+  { id: 'wall_10', x: 1160, y: 1560, w: 490, h: 95, type: 'wall', destructible: false, hp: 0, maxHp: 0, xpReward: 0 },
+  { id: 'wall_11', x: 2420, y: 1450, w: 480, h: 95, type: 'wall', destructible: false, hp: 0, maxHp: 0, xpReward: 0 },
+  { id: 'wall_12', x: 3100, y: 1610, w: 420, h: 95, type: 'wall', destructible: false, hp: 0, maxHp: 0, xpReward: 0 },
+  { id: 'wall_13', x: 380, y: 2050, w: 460, h: 90, type: 'wall', destructible: false, hp: 0, maxHp: 0, xpReward: 0 },
+  { id: 'wall_14', x: 1040, y: 2160, w: 580, h: 90, type: 'wall', destructible: false, hp: 0, maxHp: 0, xpReward: 0 },
+  { id: 'wall_15', x: 1950, y: 2050, w: 170, h: 420, type: 'wall', destructible: false, hp: 0, maxHp: 0, xpReward: 0 },
+  { id: 'wall_16', x: 2750, y: 2140, w: 650, h: 90, type: 'wall', destructible: false, hp: 0, maxHp: 0, xpReward: 0 },
+  { id: 'wall_17', x: 1780, y: 350, w: 120, h: 280, type: 'wall', destructible: false, hp: 0, maxHp: 0, xpReward: 0 },
+  { id: 'wall_18', x: 2870, y: 720, w: 120, h: 360, type: 'wall', destructible: false, hp: 0, maxHp: 0, xpReward: 0 },
+  { id: 'wall_19', x: 450, y: 1080, w: 110, h: 300, type: 'wall', destructible: false, hp: 0, maxHp: 0, xpReward: 0 },
+  { id: 'wall_20', x: 3370, y: 1060, w: 110, h: 320, type: 'wall', destructible: false, hp: 0, maxHp: 0, xpReward: 0 },
+
+  // Grind objects: can be destroyed for XP and respawn automatically.
+  { id: 'crate_1', x: 950, y: 850, w: 260, h: 170, type: 'crate', destructible: true, hp: 155, maxHp: 155, xpReward: 42, respawnMs: 15000, destroyed: false, respawnAt: 0 },
+  { id: 'crate_2', x: 2950, y: 1120, w: 220, h: 135, type: 'crate', destructible: true, hp: 135, maxHp: 135, xpReward: 38, respawnMs: 14000, destroyed: false, respawnAt: 0 },
+  { id: 'crate_3', x: 2160, y: 1560, w: 250, h: 130, type: 'crate', destructible: true, hp: 145, maxHp: 145, xpReward: 40, respawnMs: 14500, destroyed: false, respawnAt: 0 },
+  { id: 'crate_4', x: 750, y: 1800, w: 220, h: 120, type: 'crate', destructible: true, hp: 130, maxHp: 130, xpReward: 36, respawnMs: 13500, destroyed: false, respawnAt: 0 },
+  { id: 'crate_5', x: 1580, y: 1230, w: 230, h: 125, type: 'crate', destructible: true, hp: 140, maxHp: 140, xpReward: 39, respawnMs: 14500, destroyed: false, respawnAt: 0 },
+  { id: 'crate_6', x: 3420, y: 1950, w: 230, h: 130, type: 'crate', destructible: true, hp: 145, maxHp: 145, xpReward: 40, respawnMs: 14500, destroyed: false, respawnAt: 0 },
+  { id: 'crate_7', x: 2520, y: 520, w: 210, h: 120, type: 'crate', destructible: true, hp: 130, maxHp: 130, xpReward: 36, respawnMs: 13500, destroyed: false, respawnAt: 0 },
+  { id: 'crate_8', x: 1200, y: 620, w: 190, h: 115, type: 'crate', destructible: true, hp: 120, maxHp: 120, xpReward: 34, respawnMs: 13000, destroyed: false, respawnAt: 0 },
+  { id: 'core_1', x: 740, y: 510, w: 74, h: 74, type: 'core', destructible: true, hp: 78, maxHp: 78, xpReward: 30, respawnMs: 12000, destroyed: false, respawnAt: 0 },
+  { id: 'core_2', x: 1840, y: 620, w: 78, h: 78, type: 'core', destructible: true, hp: 82, maxHp: 82, xpReward: 32, respawnMs: 12000, destroyed: false, respawnAt: 0 },
+  { id: 'core_3', x: 320, y: 1220, w: 76, h: 76, type: 'core', destructible: true, hp: 80, maxHp: 80, xpReward: 31, respawnMs: 12000, destroyed: false, respawnAt: 0 },
+  { id: 'core_4', x: 3380, y: 1460, w: 78, h: 78, type: 'core', destructible: true, hp: 82, maxHp: 82, xpReward: 34, respawnMs: 12500, destroyed: false, respawnAt: 0 },
+  { id: 'core_5', x: 2100, y: 2260, w: 80, h: 80, type: 'core', destructible: true, hp: 86, maxHp: 86, xpReward: 35, respawnMs: 13000, destroyed: false, respawnAt: 0 },
+  { id: 'core_6', x: 3000, y: 580, w: 76, h: 76, type: 'core', destructible: true, hp: 80, maxHp: 80, xpReward: 31, respawnMs: 12000, destroyed: false, respawnAt: 0 },
+  { id: 'core_7', x: 1160, y: 2390, w: 78, h: 78, type: 'core', destructible: true, hp: 82, maxHp: 82, xpReward: 33, respawnMs: 12500, destroyed: false, respawnAt: 0 },
+  { id: 'core_8', x: 3560, y: 720, w: 76, h: 76, type: 'core', destructible: true, hp: 80, maxHp: 80, xpReward: 31, respawnMs: 12000, destroyed: false, respawnAt: 0 },
 ];
 
 const colors = [
@@ -100,9 +128,11 @@ const WEAPON_TREE = {
 };
 
 const STAT_UPGRADES = {
-  damage: { id: 'damage', name: 'Damage', max: 6, desc: '+12% damage per level' },
-  reload: { id: 'reload', name: 'Reload', max: 6, desc: 'Tembak makin cepat' },
-  speed: { id: 'speed', name: 'Movement', max: 6, desc: 'Tank makin lincah' },
+  damage: { id: 'damage', name: 'Damage', max: 7, desc: '+10% damage peluru per level' },
+  reload: { id: 'reload', name: 'Reload', max: 7, desc: 'Tembak makin cepat' },
+  speed: { id: 'speed', name: 'Speed', max: 7, desc: 'Tank makin lincah untuk map besar' },
+  penetration: { id: 'penetration', name: 'Penetration', max: 6, desc: 'Peluru makin kuat menembus target/obstacle. Lv2/Lv4 tambah pierce.' },
+  strength: { id: 'strength', name: 'Strength', max: 6, desc: 'Badan tank lebih kuat: HP naik, damage reduction kecil, dan peluru lebih berat.' },
   maxHp: { id: 'maxHp', name: 'Max HP', max: 6, desc: '+18 HP per level' },
   bulletSpeed: { id: 'bulletSpeed', name: 'Bullet Speed', max: 6, desc: 'Peluru lebih cepat dan range naik' },
   regen: { id: 'regen', name: 'Regen', max: 4, desc: 'Heal pelan saat tidak kena hit' },
@@ -174,11 +204,11 @@ function getWeaponBonus(player) {
 }
 
 function getMaxHp(player) {
-  return 100 + player.stats.maxHp * 18 + getWeaponBonus(player).extraHp;
+  return 100 + player.stats.maxHp * 18 + (player.stats.strength || 0) * 10 + getWeaponBonus(player).extraHp;
 }
 
 function getMoveSpeed(player) {
-  return Math.max(150, 255 + player.stats.speed * 18 - getWeaponBonus(player).speedPenalty);
+  return Math.max(150, 255 + player.stats.speed * 22 - getWeaponBonus(player).speedPenalty);
 }
 
 function awardXp(player, amount) {
@@ -188,6 +218,7 @@ function awardXp(player, amount) {
     player.xp -= xpToNext(player.level);
     player.level += 1;
     player.upgradePoints += 1;
+    refreshUpgradeChoices(player, true);
     const before = player.maxHp;
     player.maxHp = getMaxHp(player);
     player.hp = clamp(player.hp + Math.max(0, player.maxHp - before), 0, player.maxHp);
@@ -214,7 +245,165 @@ function tacticalOptionsFor(player) {
     .map((item) => ({ ...item, level: player.tactical[item.id] }));
 }
 
+
+const RANDOM_UPGRADE_CHOICE_COUNT = 3;
+const TANK_EVOLUTION_LEVELS = [2, 5, 10, 15, 20, 25];
+
+function upgradeChoiceKey(choice) {
+  return `${choice.type}:${choice.id}`;
+}
+
+function nextEvolutionLevelFor(player) {
+  const current = WEAPON_TREE[player.weapon] || WEAPON_TREE.basic;
+  const next = current.children
+    .map((id) => WEAPON_TREE[id])
+    .filter(Boolean)
+    .sort((a, b) => a.minLevel - b.minLevel)[0];
+  return next ? next.minLevel : 0;
+}
+
+function buildUpgradePool(player) {
+  const pool = [];
+
+  // Tank evolution appears at milestone levels. This keeps the match feeling
+  // like Diep.io: every few levels you get a meaningful class decision.
+  weaponOptionsFor(player).forEach((weapon) => {
+    pool.push({
+      ...weapon,
+      type: 'weapon',
+      rarity: 'evolution',
+      badge: 'TANK EVOLUTION',
+      weight: 7,
+    });
+  });
+
+  statOptionsFor(player).forEach((stat) => {
+    const important = ['damage', 'speed', 'penetration', 'strength', 'reload'].includes(stat.id);
+    pool.push({
+      ...stat,
+      type: 'stat',
+      rarity: important ? 'core' : 'stat',
+      badge: important ? 'CORE STAT' : 'STAT',
+      weight: important ? 4 : 3,
+    });
+  });
+
+  tacticalOptionsFor(player).forEach((mod) => {
+    pool.push({
+      ...mod,
+      type: 'tactical',
+      rarity: 'tactical',
+      badge: 'TACTICAL MOD',
+      weight: 2,
+    });
+  });
+
+  return pool;
+}
+
+function weightedPickUnique(pool, count) {
+  const selected = [];
+  const used = new Set();
+  for (let i = 0; i < count && used.size < pool.length; i += 1) {
+    const candidates = pool.filter((item) => !used.has(upgradeChoiceKey(item)));
+    const total = candidates.reduce((sum, item) => sum + (item.weight || 1), 0);
+    let roll = Math.random() * Math.max(1, total);
+    let picked = candidates[candidates.length - 1];
+    for (const item of candidates) {
+      roll -= item.weight || 1;
+      if (roll <= 0) {
+        picked = item;
+        break;
+      }
+    }
+    used.add(upgradeChoiceKey(picked));
+    selected.push(picked);
+  }
+  return selected;
+}
+
+function refreshUpgradeChoices(player, force = false) {
+  if (!player) return [];
+  const pool = buildUpgradePool(player);
+  if (player.upgradePoints <= 0 || pool.length === 0) {
+    player.upgradeChoices = [];
+    return player.upgradeChoices;
+  }
+
+  const existing = Array.isArray(player.upgradeChoices) ? player.upgradeChoices : [];
+  const validKeys = new Set(pool.map(upgradeChoiceKey));
+  const stillValid = existing.filter((choice) => validKeys.has(upgradeChoiceKey(choice)));
+  if (!force && stillValid.length > 0) {
+    player.upgradeChoices = stillValid.slice(0, RANDOM_UPGRADE_CHOICE_COUNT);
+    return player.upgradeChoices;
+  }
+
+  const weaponPool = pool.filter((item) => item.type === 'weapon');
+  const nonWeaponPool = pool.filter((item) => item.type !== 'weapon');
+  const choices = [];
+
+  // Prioritize tank evolution when it is available, then fill the rest with
+  // random stat/tactical choices. This matches "per beberapa level pilih tank".
+  if (weaponPool.length > 0) {
+    choices.push(...weightedPickUnique(weaponPool, Math.min(2, weaponPool.length)));
+  }
+
+  const filler = weightedPickUnique(
+    nonWeaponPool.filter((item) => !choices.some((choice) => upgradeChoiceKey(choice) === upgradeChoiceKey(item))),
+    RANDOM_UPGRADE_CHOICE_COUNT - choices.length,
+  );
+  choices.push(...filler);
+
+  if (choices.length < RANDOM_UPGRADE_CHOICE_COUNT) {
+    choices.push(...weightedPickUnique(
+      pool.filter((item) => !choices.some((choice) => upgradeChoiceKey(choice) === upgradeChoiceKey(item))),
+      RANDOM_UPGRADE_CHOICE_COUNT - choices.length,
+    ));
+  }
+
+  player.upgradeChoices = choices.slice(0, RANDOM_UPGRADE_CHOICE_COUNT);
+  return player.upgradeChoices;
+}
+
+function serializeUpgradeChoice(choice, player) {
+  if (!choice) return null;
+  const base = {
+    type: choice.type,
+    id: choice.id,
+    name: choice.name,
+    desc: choice.desc,
+    badge: choice.badge,
+    rarity: choice.rarity,
+  };
+  if (choice.type === 'stat') {
+    return {
+      ...base,
+      level: player.stats[choice.id] || 0,
+      max: STAT_UPGRADES[choice.id]?.max || choice.max || 1,
+    };
+  }
+  if (choice.type === 'tactical') {
+    return {
+      ...base,
+      level: player.tactical[choice.id] || 0,
+      max: TACTICAL_UPGRADES[choice.id]?.max || choice.max || 1,
+    };
+  }
+  return {
+    ...base,
+    tier: choice.tier,
+    minLevel: choice.minLevel,
+  };
+}
+
+function rankedPlayers() {
+  return [...players.values()]
+    .map((p) => ({ id: p.id, name: p.name, score: p.score, deaths: p.deaths, level: p.level, killStreak: p.killStreak || 0, obstacleBreaks: p.obstacleBreaks || 0, weaponName: WEAPON_TREE[p.weapon]?.name || 'Basic Tank' }))
+    .sort((a, b) => b.score - a.score || b.level - a.level || b.killStreak - a.killStreak || a.deaths - b.deaths);
+}
+
 function serializePlayers() {
+  const ranks = new Map(rankedPlayers().slice(0, 3).map((p, index) => [p.id, index + 1]));
   const data = {};
   for (const [id, p] of players.entries()) {
     data[id] = {
@@ -236,8 +425,11 @@ function serializePlayers() {
       upgradePoints: p.upgradePoints,
       killStreak: p.killStreak || 0,
       obstacleBreaks: p.obstacleBreaks || 0,
+      bountyRank: ranks.get(id) || 0,
       tactical: p.tactical,
       tacticalOptions: tacticalOptionsFor(p),
+      upgradeChoices: (p.upgradeChoices || []).map((choice) => serializeUpgradeChoice(choice, p)).filter(Boolean),
+      nextEvolutionLevel: nextEvolutionLevelFor(p),
       weapon: p.weapon,
       weaponName: WEAPON_TREE[p.weapon]?.name || 'Basic Tank',
       weaponPath: p.weaponPath,
@@ -287,10 +479,7 @@ function serializeObstacles() {
 }
 
 function leaderboard() {
-  return [...players.values()]
-    .map((p) => ({ id: p.id, name: p.name, score: p.score, deaths: p.deaths, level: p.level, killStreak: p.killStreak || 0, obstacleBreaks: p.obstacleBreaks || 0, weaponName: WEAPON_TREE[p.weapon]?.name || 'Basic Tank' }))
-    .sort((a, b) => b.score - a.score || b.level - a.level || a.deaths - b.deaths)
-    .slice(0, 6);
+  return rankedPlayers().slice(0, 8);
 }
 
 function spawnPlayer(socket, name) {
@@ -316,8 +505,9 @@ function spawnPlayer(socket, name) {
     upgradePoints: 3,
     weapon: 'basic',
     weaponPath: ['basic'],
-    stats: { damage: 0, reload: 0, speed: 0, maxHp: 0, bulletSpeed: 0, regen: 0 },
+    stats: { damage: 0, reload: 0, speed: 0, penetration: 0, strength: 0, maxHp: 0, bulletSpeed: 0, regen: 0 },
     tactical: { ricochet: 0, burst: 0, explosive: 0, killHeal: 0, armor: 0 },
+    upgradeChoices: [],
     alive: true,
     respawnAt: 0,
     lastShotAt: now,
@@ -332,6 +522,7 @@ function spawnPlayer(socket, name) {
     },
   };
   colorIndex += 1;
+  refreshUpgradeChoices(player, true);
   players.set(id, player);
   return player;
 }
@@ -380,10 +571,12 @@ function movePlayer(player, dt) {
 
 function weaponSpec(player) {
   const stats = player.stats;
-  const damageMult = 1 + stats.damage * 0.10;
+  const damageMult = 1 + stats.damage * 0.10 + (stats.strength || 0) * 0.035;
   const reloadDiv = 1 + stats.reload * 0.12;
   const speedMult = 1 + stats.bulletSpeed * 0.06;
   const lifeMult = 1 + stats.bulletSpeed * 0.035;
+  const penetrationLevel = stats.penetration || 0;
+  const strengthLevel = stats.strength || 0;
 
   const specs = {
     basic: { cooldown: 230, damage: 24, speed: 760, life: 1.7, radius: 5, shots: [{ angle: 0, offset: 0 }], inaccuracy: 0, pierce: 0, color: '#fff4a3' },
@@ -408,6 +601,9 @@ function weaponSpec(player) {
     damage: Math.round(base.damage * damageMult),
     speed: base.speed * speedMult,
     life: base.life * lifeMult,
+    pierce: Math.min(4, (base.pierce || 0) + Math.floor(penetrationLevel / 2)),
+    radius: base.radius + Math.min(2, Math.floor(strengthLevel / 3)),
+    obstacleDamageMult: 1 + penetrationLevel * 0.08 + strengthLevel * 0.04,
   };
 }
 
@@ -449,6 +645,7 @@ function shootIfNeeded(player) {
       damage: Math.max(1, Math.round(spec.damage * (shot.damageScale || 1))),
       radius: Math.max(3, Math.round(spec.radius * (shot.radiusScale || 1))),
       pierce: spec.pierce,
+      obstacleDamageMult: spec.obstacleDamageMult || 1,
       bounces: player.tactical?.ricochet || 0,
       splashRadius: explosiveLevel > 0 ? 34 + explosiveLevel * 14 : 0,
       splashDamageScale: explosiveLevel > 0 ? 0.16 + explosiveLevel * 0.06 : 0,
@@ -459,7 +656,9 @@ function shootIfNeeded(player) {
 
 function applyDamage(target, bullet, owner, damage) {
   const armorLevel = target.tactical?.armor || 0;
-  const finalDamage = Math.max(1, Math.round(damage * (1 - armorLevel * 0.055)));
+  const strengthLevel = target.stats?.strength || 0;
+  const reduction = Math.min(0.38, armorLevel * 0.055 + strengthLevel * 0.025);
+  const finalDamage = Math.max(1, Math.round(damage * (1 - reduction)));
   target.hp = Math.max(0, target.hp - finalDamage);
   target.lastDamageAt = Date.now();
   if (owner) awardXp(owner, 8);
@@ -480,6 +679,7 @@ function applyDamage(target, bullet, owner, damage) {
       // Every 3 kills in a row: smaller bonus heal + one extra upgrade point.
       if (owner.killStreak > 0 && owner.killStreak % 3 === 0) {
         owner.upgradePoints += 1;
+        refreshUpgradeChoices(owner, true);
         owner.hp = clamp(owner.hp + 24, 0, owner.maxHp);
       }
     }
@@ -539,7 +739,8 @@ function applySplashDamage(bullet, directHitId) {
 function damageObstacle(obstacle, bullet, owner) {
   if (!obstacle || !obstacle.destructible || obstacle.destroyed) return false;
 
-  obstacle.hp = Math.max(0, (obstacle.hp || obstacle.maxHp || 1) - Math.max(1, bullet.damage || 1));
+  const obstacleDamage = Math.max(1, Math.round((bullet.damage || 1) * (bullet.obstacleDamageMult || 1)));
+  obstacle.hp = Math.max(0, (obstacle.hp || obstacle.maxHp || 1) - obstacleDamage);
   if (owner && owner.alive) {
     // Small hit XP so players can grind, but far slower than killing players.
     awardXp(owner, 3);
@@ -651,8 +852,11 @@ function gameLoop() {
 }
 
 function sendSnapshot() {
-  io.emit('snapshot', {
+  // Volatile = kalau jaringan lagi padat, snapshot lama boleh dibuang.
+  // Game akan menerima snapshot terbaru berikutnya, jadi terasa lebih halus dan tidak ngantri.
+  io.volatile.emit('snapshot', {
     serverTime: Date.now(),
+    build: BUILD_VERSION,
     players: serializePlayers(),
     bullets: serializeBullets(),
     leaderboard: leaderboard(),
@@ -724,12 +928,23 @@ io.on('connection', (socket) => {
     const player = players.get(socket.id);
     if (!player) return;
 
+    refreshUpgradeChoices(player);
+    const allowed = (player.upgradeChoices || []).some((choice) => choice.type === type && choice.id === id);
     let ok = false;
-    if (type === 'stat') ok = chooseStatUpgrade(player, id);
-    if (type === 'weapon') ok = chooseWeaponUpgrade(player, id);
-    if (type === 'tactical') ok = chooseTacticalUpgrade(player, id);
+    if (allowed && type === 'stat') ok = chooseStatUpgrade(player, id);
+    if (allowed && type === 'weapon') ok = chooseWeaponUpgrade(player, id);
+    if (allowed && type === 'tactical') ok = chooseTacticalUpgrade(player, id);
 
-    socket.emit('upgradeResult', { ok, type, id, upgradePoints: player.upgradePoints });
+    if (ok) refreshUpgradeChoices(player, true);
+    socket.emit('upgradeResult', { ok, type, id, upgradePoints: player.upgradePoints, choices: (player.upgradeChoices || []).map((choice) => serializeUpgradeChoice(choice, player)).filter(Boolean) });
+    sendSnapshot();
+  });
+
+  socket.on('rerollUpgrades', () => {
+    const player = players.get(socket.id);
+    if (!player) return;
+    refreshUpgradeChoices(player, true);
+    socket.emit('upgradeResult', { ok: true, type: 'reroll', id: 'choices', upgradePoints: player.upgradePoints, choices: (player.upgradeChoices || []).map((choice) => serializeUpgradeChoice(choice, player)).filter(Boolean) });
     sendSnapshot();
   });
 
